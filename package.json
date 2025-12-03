@@ -1,0 +1,33 @@
+{
+  "name": "ai-studio-template",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "npm@10.8.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "lint": "npm run -w @app/web lint",
+    "format": "prettier --check .",
+    "format:write": "prettier --write .",
+    "test": "vitest --run",
+    "build": "npm run -w @app/web build",
+    "dev": "npm run -w @app/web dev",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "19.8.1",
+    "@commitlint/config-conventional": "19.8.1",
+    "@types/node": "20.19.24",
+    "commitizen": "4.3.1",
+    "cz-git": "1.12.0",
+    "eslint": "9.38.0",
+    "eslint-config-prettier": "10.1.8",
+    "husky": "9.1.7",
+    "lint-staged": "15.5.2",
+    "prettier": "3.6.2",
+    "vitest": "2.1.9"
+  },
+  "type": "module"
+}

@@ -1,0 +1,13 @@
+node_modules/
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+.yarn/
+.eslintcache
+.vscode/
+dist/
+build/
+coverage/
+.env
+.env.local
+.direnv/
