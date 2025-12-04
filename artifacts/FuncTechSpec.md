@@ -1,4 +1,4 @@
-# Luminous Localization Media – Media Promo Localizer PoC
+# Media Promo Localizer PoC
 
 ## Functional & Technical Specification
 
@@ -6,14 +6,14 @@
 
 ## 1. Document Metadata
 
-**Project Name:** Media Promo Localizer  
-**Repo:** `CHennes81/media-promo-localizer`  
-**Document Path:** `artifacts/spec/FuncTechSpec.md`  
+**Project Name:** Media Promo Localizer
+**Repo:** `CHennes81/media-promo-localizer`
+**Document Path:** `artifacts/spec/FuncTechSpec.md`
 **Owner:** Christopher Hennes
 
 ### 1.1 Purpose
 
-This document defines the functional and technical specification for the Media Promo Localizer proof-of-concept (PoC) application developed by Luminous Localization Media (LLM). It is the primary reference for implementation (via AI-assisted development), review, and future extension.
+This document defines the functional and technical specification for the Media Promo Localizer proof-of-concept (PoC) application. It is the primary reference for implementation (via AI-assisted development), review, and future extension.
 
 ### 1.2 Audience
 
@@ -24,7 +24,8 @@ This document defines the functional and technical specification for the Media P
 
 ### 1.3 Version History
 
-- v0.1 – Initial draft for PoC: scope, architecture, and pipeline defined.
+- **v0.2** – Added stub login requirement, improved processing UX, neutralized project naming, and added per-step timing data to the API response.
+- **v0.1** – Initial draft for PoC: scope, architecture, and pipeline defined.
 
 ---
 
@@ -199,7 +200,7 @@ Future languages (out of scope for v1) may include German, Italian, other target
 
 ### 6.1 POST /api/translate-poster
 
-Description:  
+Description:
 Main entry point for localizing a single poster image into one target language.
 
 Request (multipart/form-data):
@@ -232,16 +233,31 @@ Response (JSON):
           }
         ]
       }
+      "timings": {
+        "total_ms": 8423,
+        "steps": {
+          "load_normalize_ms": 35,
+          "ocr_ms": 1290,
+          "translation_ms": 2150,
+          "inpainting_ms": 3670,
+          "render_ms": 980,
+          "export_ms": 298
+        }
+      }
     }
 
 Notes:
 
 - For v1, returning localized_image as a base64 string is acceptable. Later, this may become a signed URL to storage (e.g., S3).
 - metadata.text_blocks assists debugging and future UI overlays, but the frontend does not need to rely on it for the basic demo.
+- The `timings` field provides coarse-grained performance data for the request.
+  - `total_ms` is the approximate end-to-end duration of the pipeline for this poster.
+  - `steps` contains per-step timings for key pipeline phases: image normalization, OCR, translation, inpainting, text rendering, and export.
+- These timing values are intended for **demo and benchmarking** purposes and do not require millisecond-perfect accuracy; simple timestamp difference measurements before and after each step are sufficient.
 
 ### 6.2 GET /health
 
-Description:  
+Description:
 Simple health check endpoint for monitoring and deployment validation.
 
 Response:
@@ -347,7 +363,28 @@ Each external dependency will have its own client interface with at least one co
 
 ## 9. Frontend Requirements (Web App)
 
-### 9.1 Poster Localizer Page
+### 9.1 Authentication (Stubbed for PoC)
+
+For this PoC, the application will include a simple **Login view** to demonstrate that authentication and access control are part of the expected UX, even though no real security will be implemented yet.
+
+Requirements:
+
+- Provide a dedicated **Login screen** with:
+  - Email field (text input)
+  - Password field (password input)
+  - “Log in” button
+- Any non-empty email and password combination is treated as valid.
+- On successful login:
+  - Store a simple “logged in” flag (e.g., in React state and/or localStorage).
+  - Route the user to the main **Poster Localizer** page.
+- The Poster Localizer page should be inaccessible (via normal navigation) until the user has “logged in”. A simple client-side check is sufficient for this PoC.
+
+The spec must clearly note that:
+
+- This is a **stub implementation** intended only for demonstration.
+- In a production deployment, this view would be replaced by real authentication and authorization (e.g., studio SSO / identity provider).
+
+### 9.2 Poster Localizer Page
 
 New feature page in the React app, e.g., /poster-localizer.
 
@@ -360,7 +397,7 @@ Responsibilities:
 - Display original vs localized image once complete.
 - Offer download of localized PNG.
 
-### 9.2 UI Flow
+### 9.3 UI Flow
 
 1. Landing section with short description and Upload button.
 2. Once file is chosen, user selects target language from a dropdown.
@@ -369,16 +406,34 @@ Responsibilities:
 5. Upon success: shows side-by-side view of Original vs Localized and a Download PNG button.
 6. Upon error: shows a friendly error message and suggests trying again.
 
-### 9.3 API Integration (Frontend)
+#### 9.3.1 Processing State/Status
+
+While the backend is processing the poster, the UI **must not** remain static. Instead, it should present:
+
+- A visible **animated indicator** (e.g., spinner or progress bar), and
+- A sequence of short **status messages** that communicate high-level pipeline phases, such as:
+  1. “Analyzing poster…”
+  2. “Translating text…”
+  3. “Reconstructing background…”
+  4. “Rendering localized version…”
+
+For v1 of the PoC:
+
+- It is acceptable for these phases to be **simulated entirely in the frontend** during a single API call (e.g., timed updates to the message every few seconds) rather than driven by real-time server events.
+- The primary goal is to ensure that during potentially long-running processing (tens of seconds to a couple of minutes), the user sees visible progress and understands that the system is working through multiple intelligent steps.
+
+Later versions may replace this simulated sequence with actual step-aware progress updates from the backend (e.g., via polling or WebSockets).
+
+### 9.4 API Integration (Frontend)
 
 - Frontend will call the backend at a configurable base URL (e.g., VITE_API_BASE_URL).
 - Use fetch or a lightweight HTTP client to send a multipart POST request with file and target_language.
 - Expect JSON response with localized_image.data (base64) and basic metadata.
 - Convert base64 back to a Blob for display and download.
 
-### 9.4 Branding
+### 9.5 Branding
 
-- Light, professional styling as Luminous Localization Media.
+- Light, professional styling as Media Promo Localizer.
 - No real-world studio branding.
 - Optional fictitious logo or wordmark.
 
@@ -433,6 +488,7 @@ For each curated demo poster:
 
 - Backend should log request start/end for /api/translate-poster, key pipeline step transitions, and errors with sufficient context but without sensitive data.
 - No full observability stack is required for the PoC, but logs should make it easy to debug failures.
+- In addition to writing basic logs, the backend records simple per-step timing metrics for each call to `/api/translate-poster`. These timings are returned to the caller in the `timings` object (see Section 6.1) so that demo users and technical reviewers can understand where time is being spent in the pipeline. No persistent metrics store is required for this PoC; in a production environment, these timings could be exported to a monitoring system for aggregation and alerting.
 
 ---
 
