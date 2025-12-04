@@ -2,7 +2,7 @@
 
 **Audience:** Human developers and AI coding assistants (e.g., Claude, ChatGPT)
 
-This document defines **how work should be done** in this repo when using AI-assisted, spec-driven development.  
+This document defines **how work should be done** in this repo when using AI-assisted, spec-driven development.
 It complements:
 
 - `artifacts/FuncTechSpec.md` – what to build
@@ -220,7 +220,7 @@ To keep the repo coherent:
 2. **Do not modify**:
    - Husky config
    - CI workflows
-   - Artifact files (spec, coding standards, process docs)  
+   - Artifact files (spec, coding standards, process docs)
      unless the task is explicitly about updating them.
 3. Limit changes to files directly relevant to the task.
 
@@ -241,10 +241,10 @@ When asking Claude to work in this repo, use prompts that:
 
 Example prompt structure:
 
-> You are acting as a senior engineer working in the `media-promo-localizer` repo.  
-> Operate in IMPLEMENTATION_MODE: you may modify application code and add tests, but you may not modify existing test expectations.  
-> Your task: [clear description].  
-> Follow `FuncTechSpec.md` and `CodingStandards.md`.  
+> You are acting as a senior engineer working in the `media-promo-localizer` repo.
+> Operate in IMPLEMENTATION_MODE: you may modify application code and add tests, but you may not modify existing test expectations.
+> Your task: [clear description].
+> Follow `FuncTechSpec.md` and `CodingStandards.md`.
 > First, restate the task, then list the files you plan to touch, then implement.
 
 This reduces confusion and keeps the assistant tightly aligned with project norms.
