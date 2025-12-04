@@ -11,13 +11,6 @@ jobs:
     name: Frontend – lint, type-check, build
     runs-on: ubuntu-latest
 
-    # Only run if a package.json exists in frontend/
-    if: ${{ hashFiles('frontend/package.json') != '' }}
-
-    defaults:
-      run:
-        working-directory: frontend
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -25,69 +18,16 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
+          node-version: 20
 
       - name: Install dependencies
-        run: |
-          if [ -f pnpm-lock.yaml ]; then
-            pnpm install --frozen-lockfile
-          else
-            pnpm install
-          fi
+        run: npm ci
 
       - name: Lint
-        run: pnpm lint
+        run: npm run lint
 
-      - name: Type-check
-        run: pnpm type-check
+      - name: Type-check web app
+        run: npm run -w @app/web typecheck
 
-      - name: Build
-        run: pnpm build
-
-  backend:
-    name: Backend – flake8 + pytest (if tests present)
-    runs-on: ubuntu-latest
-
-    # Only run if there is some indication of a Python project in backend/
-    if: ${{ hashFiles('backend/requirements.txt', 'backend/requirements-dev.txt', 'backend/pyproject.toml') != '' }}
-
-    defaults:
-      run:
-        working-directory: backend
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          if [ -f requirements-dev.txt ]; then
-            pip install -r requirements-dev.txt
-          elif [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          else
-            echo "No requirements file found, installing minimal tools"
-          fi
-          pip install flake8 pytest
-
-      - name: flake8
-        run: flake8 .
-
-      - name: pytest (if tests/ exists)
-        run: |
-          if [ -d "tests" ]; then
-            pytest
-          else
-            echo "No tests/ directory; skipping pytest"
-          fi
+      - name: Build web app
+        run: npm run -w @app/web build
