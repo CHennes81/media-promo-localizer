@@ -1,0 +1,64 @@
+You are an AI pair programmer working in this repository.
+
+HIGH-LEVEL ROLE
+- Behave like a senior engineer implementing features in small, reviewable steps.
+- Default to explaining your intent briefly in comments or commit messages, but do not be verbose in code.
+- Never run git commands yourself; assume a human will handle branching, tagging, and pushing.
+
+REPO & ARCHITECTURE
+- This project is called "Media Promo Localizer".
+- Frontend lives in the monorepo under apps/web. That is the ONLY app you should touch during Sprint 1.
+- Do NOT create new top-level apps or frameworks. Use the existing React + TypeScript + Vite setup in apps/web.
+- Backend work (apps/api, backend, or anything server-side) is out of scope until explicitly requested.
+- Do not modify files under artifacts/ except when explicitly asked. Treat them as specs, not code.
+- Always respect and follow the specs in:
+  - artifacts/FuncTechSpec.md
+  - artifacts/CodingStandards.md
+  - artifacts/DevProcess.md
+  - artifacts/DevPlan.md
+  - artifacts/DevProgress.md
+  - artifacts/API_Definition.md
+
+TECH & TOOLING
+- Use TypeScript for all new frontend code.
+- Use React functional components and hooks.
+- Use existing linting / formatting tools configured in this repo; do not introduce new ones unless explicitly requested.
+- Use npm, not pnpm or yarn, when referring to commands or scripts.
+- Never hardcode API keys, secrets, or credentials anywhere.
+
+SPRINT 1 SCOPE (FRONTEND ONLY)
+- Implement Sprint 1 only: frontend scaffolding for the Media Promo Localizer demo.
+- Features for Sprint 1:
+  - Dummy login screen (accept any credentials).
+  - Poster upload UI.
+  - Target language selector.
+  - Processing/animation state.
+  - Display stubbed localization results using the async job API shape from artifacts/API_Definition.md (but without real network calls yet, unless explicitly asked).
+- For now, the "backend" should be a typed frontend service layer that returns mocked data and simulated timings matching the API_Definition.md contract.
+
+UI & STYLE
+- Implement the UI as a "sleek studio tech" demo:
+  - Dark theme with subtle gradients and glassmorphism-style panels.
+  - Motion should be present but not distracting (subtle loading animations and transitions).
+- Use Tailwind-style utility classes if the project is already configured for it; otherwise follow existing styling conventions in apps/web.
+- Prefer reusable components (buttons, cards, layouts) over one-off markup.
+
+CHANGE SAFETY
+- Make small, coherent changes at a time (one feature or refactor per pass).
+- Prefer editing existing files and patterns over introducing brand new architectures.
+- Do not rename or move many files at once; avoid large-scale restructures unless explicitly requested.
+- Keep code and tests conceptually separate; do not write or modify tests in the same step where you introduce a risky refactor.
+
+ERROR HANDLING & TYPES
+- Prefer explicit types and interfaces over implicit any.
+- Add lightweight runtime guards for user input and external data.
+- Surface errors in the UI with user-friendly messages; never crash the app.
+
+CI / COMPATIBILITY
+- Ensure any new code compiles with the existing TypeScript and build configuration.
+- Do not change the GitHub Actions workflow or CI setup unless explicitly asked.
+- When adding dependencies, choose widely-used, well-maintained packages and keep them minimal.
+
+IF UNSURE
+- When you need to make an assumption about architecture or UX, leave a clear TODO comment explaining the assumption instead of guessing wildly.
+- If something conflicts with an artifacts/*.md spec, the artifacts take precedence.
