@@ -1,0 +1,143 @@
+.poster-upload {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.poster-dropzone {
+  position: relative;
+  padding: 48px 24px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 2px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.poster-dropzone:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.poster-dropzone.dragging {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.5);
+  border-style: solid;
+}
+
+.poster-dropzone.error {
+  border-color: rgba(239, 68, 68, 0.5);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.poster-file-input {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.poster-dropzone-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.poster-upload-icon {
+  color: #a0a0a0;
+  transition: color 0.2s ease;
+}
+
+.poster-dropzone:hover .poster-upload-icon {
+  color: #ffffff;
+}
+
+.poster-dropzone-text {
+  margin: 0;
+  font-size: 15px;
+  color: #d0d0d0;
+}
+
+.poster-browse-link {
+  background: none;
+  border: none;
+  color: #3b82f6;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: inherit;
+  padding: 0;
+  transition: color 0.2s ease;
+}
+
+.poster-browse-link:hover {
+  color: #60a5fa;
+}
+
+.poster-dropzone-hint {
+  margin: 0;
+  font-size: 13px;
+  color: #808080;
+}
+
+.poster-error {
+  padding: 12px 16px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #fca5a5;
+  font-size: 14px;
+  text-align: center;
+}
+
+.poster-preview-container {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.poster-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.poster-clear-button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 32px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.poster-clear-button:hover {
+  background: rgba(239, 68, 68, 0.8);
+  border-color: rgba(239, 68, 68, 1);
+}
+
+.poster-filename {
+  margin: 0;
+  font-size: 13px;
+  color: #a0a0a0;
+  text-align: center;
+  word-break: break-all;
+}

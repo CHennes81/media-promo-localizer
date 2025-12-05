@@ -1,0 +1,137 @@
+.result-view {
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  backdrop-filter: blur(20px);
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.result-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.result-language-badge {
+  padding: 6px 12px;
+  background: rgba(59, 130, 246, 0.2);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #93c5fd;
+}
+
+.result-comparison {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 32px;
+}
+
+.result-image-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.result-image-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #a0a0a0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  text-align: center;
+}
+
+.result-image {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: contain;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.result-arrow {
+  font-size: 32px;
+  color: #3b82f6;
+  display: flex;
+  align-items: center;
+  padding-top: 60px;
+}
+
+.result-stats {
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.result-stats-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #d0d0d0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 16px;
+}
+
+.result-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 16px;
+}
+
+.result-stat {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  text-align: center;
+}
+
+.result-stat-total {
+  background: rgba(59, 130, 246, 0.1);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.result-stat-label {
+  font-size: 12px;
+  color: #a0a0a0;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.result-stat-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+}
+
+.result-stat-total .result-stat-value {
+  color: #3b82f6;
+}
+
+@media (max-width: 768px) {
+  .result-comparison {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .result-arrow {
+    transform: rotate(90deg);
+    padding-top: 0;
+    justify-content: center;
+  }
+}
