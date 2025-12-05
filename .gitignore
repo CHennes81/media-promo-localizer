@@ -12,3 +12,9 @@ coverage/
 .env.local
 .direnv/
 .DS_Store
+
+# Backup and temporary files
+*.bak
+*.tmp
+*.swp
+*~
