@@ -328,3 +328,31 @@ These are NOT required for the MVP but reserved for future versions:
 
 - **Rich asset bundles**
   - Multiple output renditions, layered PSD export, etc.
+
+## 7. Implementation Modes (Mock vs Live)
+
+The API contract above is fixed and MUST be respected by all implementations.
+
+For development and demo purposes, there will be at least two internal pipeline implementations behind this API:
+
+- **Mock (Dummy) Implementation**
+  - Used in early sprints and for fast, low-cost UI polishing.
+  - Does NOT call external providers.
+  - Simulates the OCR → translation → inpaint stages, including:
+    - Plausible `progress.stage` transitions.
+    - Plausible `stageTimingsMs`.
+  - Returns either:
+    - A fixed sample output image, or
+    - A locally generated placeholder image.
+  - Selected via configuration (for example `LOCALIZATION_MODE=mock`).
+
+- **Live Implementation**
+  - Calls real external AI services (such as Google Vision, Claude, Replicate).
+  - Produces an actual localized poster image from the uploaded asset.
+  - Populates real timing data and (optionally) `detectedText`.
+  - Selected via configuration (for example `LOCALIZATION_MODE=live`).
+
+Both implementations MUST:
+
+- Expose the same endpoints and payloads defined in this document.
+- Never leak vendor-specific payloads or error formats to callers.
