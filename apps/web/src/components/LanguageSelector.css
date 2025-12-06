@@ -1,56 +1,39 @@
 .language-selector {
   display: flex;
   flex-direction: column;
-  gap: 16px;
 }
 
-.language-selector-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: #d0d0d0;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.language-selector-options {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-}
-
-.language-option {
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.03);
+.language-select {
+  width: 100%;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  text-align: left;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%23a0a0a0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  padding-right: 40px;
 }
 
-.language-option:hover {
-  background: rgba(255, 255, 255, 0.05);
+.language-select:hover {
+  background-color: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
 }
 
-.language-option.selected {
-  background: rgba(59, 130, 246, 0.15);
+.language-select:focus {
+  background-color: rgba(255, 255, 255, 0.08);
   border-color: rgba(59, 130, 246, 0.5);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.language-label {
-  font-size: 14px;
-  font-weight: 500;
+.language-select option {
+  background: #1a1a1a;
   color: #ffffff;
-}
-
-.language-code {
-  font-size: 12px;
-  color: #a0a0a0;
-  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
 }

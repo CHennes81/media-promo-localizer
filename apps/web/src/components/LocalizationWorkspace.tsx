@@ -150,7 +150,23 @@ export function LocalizationWorkspace() {
     <div className="workspace">
       <header className="workspace-header">
         <div className="workspace-header-content">
-          <h1 className="workspace-title">Media Promo Localizer</h1>
+          <div className="workspace-logo">
+            <svg
+              className="workspace-logo-icon"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M9 9h6v6H9z" />
+              <path d="M3 12h18" />
+              <path d="M12 3v18" />
+            </svg>
+            <h1 className="workspace-title">Media Promo Localizer</h1>
+          </div>
           <button type="button" className="workspace-logout-button" onClick={logout}>
             Logout
           </button>
@@ -158,34 +174,41 @@ export function LocalizationWorkspace() {
       </header>
 
       <main className="workspace-main">
-        <div className="workspace-grid">
-          <section className="workspace-section workspace-section-upload">
-            <h2 className="workspace-section-title">Upload Poster</h2>
-            <PosterUpload
-              selectedFile={selectedFile}
-              onFileSelect={handleFileSelect}
-              onFileClear={handleFileClear}
-            />
-          </section>
+        <div className="workspace-background">
+          <div className="workspace-gradient-orb workspace-gradient-orb-1" />
+          <div className="workspace-gradient-orb workspace-gradient-orb-2" />
+          <div className="workspace-gradient-orb workspace-gradient-orb-3" />
+        </div>
+        <div className="workspace-content">
+          <div className="workspace-stack">
+            <section className="workspace-section workspace-section-upload">
+              <h2 className="workspace-section-title">Upload Poster</h2>
+              <PosterUpload
+                selectedFile={selectedFile}
+                onFileSelect={handleFileSelect}
+                onFileClear={handleFileClear}
+              />
+            </section>
 
-          <section className="workspace-section workspace-section-language">
-            <h2 className="workspace-section-title">Target Language</h2>
-            <LanguageSelector
-              selectedLanguage={selectedLanguage}
-              onLanguageChange={setSelectedLanguage}
-            />
-          </section>
+            <section className="workspace-section workspace-section-language">
+              <h2 className="workspace-section-title">Target Language</h2>
+              <LanguageSelector
+                selectedLanguage={selectedLanguage}
+                onLanguageChange={setSelectedLanguage}
+              />
+            </section>
 
-          <section className="workspace-section workspace-section-actions">
-            <button
-              type="button"
-              className="workspace-localize-button"
-              onClick={handleLocalize}
-              disabled={!canLocalize || isProcessing}
-            >
-              {isProcessing ? 'Processing...' : 'Localize Poster'}
-            </button>
-          </section>
+            <section className="workspace-section workspace-section-actions">
+              <button
+                type="button"
+                className="workspace-localize-button"
+                onClick={handleLocalize}
+                disabled={!canLocalize || isProcessing}
+              >
+                {isProcessing ? 'Processing...' : 'Localize Poster'}
+              </button>
+            </section>
+          </div>
 
           {isProcessing && currentJob?.progress && (
             <section className="workspace-section workspace-section-processing">

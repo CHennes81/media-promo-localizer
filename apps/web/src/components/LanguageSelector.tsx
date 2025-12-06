@@ -21,20 +21,17 @@ interface LanguageSelectorProps {
 export function LanguageSelector({ selectedLanguage, onLanguageChange }: LanguageSelectorProps) {
   return (
     <div className="language-selector">
-      <label className="language-selector-label">Target Language</label>
-      <div className="language-selector-options">
+      <select
+        className="language-select"
+        value={selectedLanguage}
+        onChange={(e) => onLanguageChange(e.target.value)}
+      >
         {SUPPORTED_LANGUAGES.map((lang) => (
-          <button
-            key={lang.code}
-            type="button"
-            className={`language-option ${selectedLanguage === lang.code ? 'selected' : ''}`}
-            onClick={() => onLanguageChange(lang.code)}
-          >
-            <span className="language-label">{lang.label}</span>
-            <span className="language-code">{lang.code}</span>
-          </button>
+          <option key={lang.code} value={lang.code}>
+            {lang.label} ({lang.code})
+          </option>
         ))}
-      </div>
+      </select>
     </div>
   );
 }
