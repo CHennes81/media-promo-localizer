@@ -1,4 +1,4 @@
-import { useRef, useState, type DragEvent, type ChangeEvent } from 'react';
+import { useRef, useState, useEffect, type DragEvent, type ChangeEvent } from 'react';
 import './PosterUpload.css';
 
 interface PosterUploadProps {
@@ -10,7 +10,21 @@ interface PosterUploadProps {
 export function PosterUpload({ selectedFile, onFileSelect, onFileClear }: PosterUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState('');
+  const [previewUrl, setPreviewUrl] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Manage object URL lifecycle for preview
+  useEffect(() => {
+    if (selectedFile) {
+      const url = URL.createObjectURL(selectedFile);
+      setPreviewUrl(url);
+      return () => {
+        URL.revokeObjectURL(url);
+      };
+    } else {
+      setPreviewUrl('');
+    }
+  }, [selectedFile]);
 
   const validateFile = (file: File): boolean => {
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png'];
@@ -28,13 +42,26 @@ export function PosterUpload({ selectedFile, onFileSelect, onFileClear }: Poster
     }
   };
 
+  const dropzoneRef = useRef<HTMLDivElement>(null);
+
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragging(true);
   };
 
-  const handleDragLeave = () => {
-    setIsDragging(false);
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    // Only set isDragging to false if we're actually leaving the dropzone
+    // (not just moving to a child element)
+    const dropzone = dropzoneRef.current;
+    if (dropzone) {
+      const rect = dropzone.getBoundingClientRect();
+      const x = e.clientX;
+      const y = e.clientY;
+      // Check if the mouse is outside the dropzone boundaries
+      if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+        setIsDragging(false);
+      }
+    }
   };
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
@@ -66,8 +93,7 @@ export function PosterUpload({ selectedFile, onFileSelect, onFileClear }: Poster
     }
   };
 
-  if (selectedFile) {
-    const previewUrl = URL.createObjectURL(selectedFile);
+  if (selectedFile && previewUrl) {
     return (
       <div className="poster-upload">
         <div className="poster-preview-container">
@@ -84,6 +110,7 @@ export function PosterUpload({ selectedFile, onFileSelect, onFileClear }: Poster
   return (
     <div className="poster-upload">
       <div
+        ref={dropzoneRef}
         className={`poster-dropzone ${isDragging ? 'dragging' : ''} ${error ? 'error' : ''}`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}

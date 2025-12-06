@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PosterUpload } from './PosterUpload';
 import { LanguageSelector, SUPPORTED_LANGUAGES } from './LanguageSelector';
 import { ProcessingAnimation } from './ProcessingAnimation';
@@ -13,16 +13,54 @@ export function LocalizationWorkspace() {
   const [selectedLanguage, setSelectedLanguage] = useState(SUPPORTED_LANGUAGES[0].code);
   const [currentJob, setCurrentJob] = useState<LocalizationJob | null>(null);
   const [originalImageUrl, setOriginalImageUrl] = useState<string>('');
+  const previousJobIdRef = useRef<string | null>(null);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { logout } = useAuth();
 
+  // Cleanup originalImageUrl when it changes
   useEffect(() => {
-    // Cleanup object URLs on unmount
     return () => {
       if (originalImageUrl && originalImageUrl.startsWith('blob:')) {
         URL.revokeObjectURL(originalImageUrl);
       }
     };
   }, [originalImageUrl]);
+
+  // Cleanup job result URLs only when switching to a different job or unmounting
+  useEffect(() => {
+    const currentJobId = currentJob?.jobId ?? null;
+
+    // If we're switching from one job to another (or clearing), revoke the previous job's URLs
+    if (previousJobIdRef.current !== null && previousJobIdRef.current !== currentJobId) {
+      mockLocalizationService.revokeJobUrls(previousJobIdRef.current);
+    }
+
+    previousJobIdRef.current = currentJobId;
+
+    // Cleanup on unmount
+    return () => {
+      if (previousJobIdRef.current !== null) {
+        mockLocalizationService.revokeJobUrls(previousJobIdRef.current);
+      }
+    };
+  }, [currentJob?.jobId]);
+
+  // Cleanup subscriptions and timeouts on unmount
+  useEffect(() => {
+    return () => {
+      // Clear any pending timeout
+      if (timeoutRef.current !== null) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      // Unsubscribe from any active subscription
+      if (unsubscribeRef.current !== null) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+  }, []);
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
@@ -46,6 +84,16 @@ export function LocalizationWorkspace() {
   const handleLocalize = async () => {
     if (!selectedFile) return;
 
+    // Clean up any previous subscription and timeout before starting a new job
+    if (timeoutRef.current !== null) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (unsubscribeRef.current !== null) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+
     try {
       const job = await mockLocalizationService.createJob({
         file: selectedFile,
@@ -57,15 +105,34 @@ export function LocalizationWorkspace() {
       // Subscribe to job updates
       const unsubscribe = mockLocalizationService.subscribeToJob(job.jobId, (updatedJob) => {
         setCurrentJob(updatedJob);
+        // If job completes, clean up immediately
+        if (updatedJob.status === 'succeeded' || updatedJob.status === 'failed') {
+          if (timeoutRef.current !== null) {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = null;
+          }
+          if (unsubscribeRef.current !== null) {
+            unsubscribeRef.current();
+            unsubscribeRef.current = null;
+          }
+        }
       });
+
+      // Store unsubscribe function for cleanup
+      unsubscribeRef.current = unsubscribe;
 
       // Cleanup subscription when job completes
       if (job.status === 'succeeded' || job.status === 'failed') {
         unsubscribe();
+        unsubscribeRef.current = null;
       } else {
         // Auto-unsubscribe after a delay (job will complete via simulation)
-        setTimeout(() => {
-          unsubscribe();
+        timeoutRef.current = setTimeout(() => {
+          if (unsubscribeRef.current !== null) {
+            unsubscribeRef.current();
+            unsubscribeRef.current = null;
+          }
+          timeoutRef.current = null;
         }, 10000);
       }
     } catch (error) {

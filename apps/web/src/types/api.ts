@@ -11,6 +11,7 @@ export interface StageTimingsMs {
   packaging: number;
 }
 
+// TODO: revisit ProcessingTimeMs vs StageTimingsMs when wiring real backend; align exactly with API_Definition.md
 export interface ProcessingTimeMs extends StageTimingsMs {
   total: number;
 }

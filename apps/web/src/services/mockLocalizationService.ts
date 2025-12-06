@@ -25,10 +25,13 @@ function generateJobId(): string {
 }
 
 // Create a placeholder image URL (using a data URL or placeholder service)
-function createPlaceholderImageUrl(originalFile: File): string {
+// Note: URLs created here are tracked and should be revoked via revokeJobUrls()
+function createPlaceholderImageUrl(originalFile: File, objectUrls: Set<string>): string {
   // For demo, we'll create a data URL from the original file
   // In a real app, this would be a CDN URL
-  return URL.createObjectURL(originalFile);
+  const url = URL.createObjectURL(originalFile);
+  objectUrls.add(url);
+  return url;
 }
 
 // Simulate job progress updates
@@ -37,6 +40,7 @@ async function simulateJobProgress(
   targetLanguage: string,
   originalFile: File,
   onProgress: (job: LocalizationJob) => void,
+  objectUrls: Set<string>,
 ): Promise<LocalizationJob> {
   const stages: ProcessingStage[] = ['ocr', 'translation', 'inpaint', 'packaging'];
   const startTime = Date.now();
@@ -115,8 +119,8 @@ async function simulateJobProgress(
       stageTimingsMs: stageTimings,
     },
     result: {
-      imageUrl: createPlaceholderImageUrl(originalFile),
-      thumbnailUrl: createPlaceholderImageUrl(originalFile),
+      imageUrl: createPlaceholderImageUrl(originalFile, objectUrls),
+      thumbnailUrl: createPlaceholderImageUrl(originalFile, objectUrls),
       processingTimeMs,
       language: targetLanguage,
       sourceLanguage: 'en-US',
@@ -141,6 +145,30 @@ async function simulateJobProgress(
 
 export class MockLocalizationService {
   private activeJobs = new Map<string, LocalizationJob>();
+  private objectUrls = new Set<string>();
+
+  // Clean up object URLs for a specific job
+  revokeJobUrls(jobId: string): void {
+    const job = this.activeJobs.get(jobId);
+    if (job?.result) {
+      if (job.result.imageUrl && job.result.imageUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(job.result.imageUrl);
+        this.objectUrls.delete(job.result.imageUrl);
+      }
+      if (job.result.thumbnailUrl && job.result.thumbnailUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(job.result.thumbnailUrl);
+        this.objectUrls.delete(job.result.thumbnailUrl);
+      }
+    }
+  }
+
+  // Clean up all object URLs (useful for cleanup on unmount)
+  revokeAllUrls(): void {
+    this.objectUrls.forEach((url) => {
+      URL.revokeObjectURL(url);
+    });
+    this.objectUrls.clear();
+  }
 
   async createJob(request: CreateJobRequest): Promise<LocalizationJob> {
     // Validate file type
@@ -160,9 +188,15 @@ export class MockLocalizationService {
     this.activeJobs.set(jobId, job);
 
     // Start simulation asynchronously
-    simulateJobProgress(jobId, request.targetLanguage, request.file, (updatedJob) => {
-      this.activeJobs.set(jobId, updatedJob);
-    }).catch((error) => {
+    simulateJobProgress(
+      jobId,
+      request.targetLanguage,
+      request.file,
+      (updatedJob) => {
+        this.activeJobs.set(jobId, updatedJob);
+      },
+      this.objectUrls,
+    ).catch((error) => {
       // Handle simulation errors
       const failedJob: LocalizationJob = {
         ...job,
