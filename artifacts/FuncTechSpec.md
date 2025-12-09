@@ -24,6 +24,7 @@ This document defines the functional and technical specification for the Media P
 
 ### 1.3 Version History
 
+- **v0.3** – Refined PoC scope to focus on reusable poster templates, per-locale previews, and JSON export (flat image input; PSD/DAM integration and inpainting deferred to future phases).
 - **v0.2** – Added stub login requirement, improved processing UX, neutralized project naming, and added per-step timing data to the API response.
 - **v0.1** – Initial draft for PoC: scope, architecture, and pipeline defined.
 
@@ -33,491 +34,867 @@ This document defines the functional and technical specification for the Media P
 
 ### 2.1 Problem Statement
 
-Movie and TV studios produce English-language promotional artwork (posters, one-sheets) and then localize them manually for many international markets. The current workflow:
+Movie and TV studios produce English-language promotional artwork (posters, one-sheets, key art) and then localize it manually for many international markets. The current workflow typically looks like:
 
-- Human translators produce localized copy.
-- Human designers remove the original English text from the artwork.
-- Designers re-create the localized text using similar fonts, colors, and effects.
+- Human translators produce localized copy for each market.
+- Human designers remove or hide the original English text from the artwork.
+- Designers re-create the localized text using similar fonts, colors, and effects, often from scratch.
 - Designers patch any background imagery revealed by repositioned or resized text.
+- The same structural decisions (what text goes where, which pieces translate vs stay locked) are re-thought in each market.
 
-This is time-intensive and expensive, causing slower time-to-market and higher localization costs.
+This is time-intensive and expensive, causing slower time-to-market and higher localization costs. It also leads to duplicated effort: every territory repeats many of the same structural decisions on the same key art.
+
+There is an opportunity to:
+
+- Do the structural analysis of a poster once (identify text regions, semantics, and policies),
+- Reuse that work across many locales,
+- And give local teams a strong AI-assisted starting point instead of a blank canvas.
 
 ### 2.2 PoC Goal
 
-The Media Promo Localizer PoC demonstrates that AI-driven automation can perform most of this work end-to-end:
+The Media Promo Localizer PoC demonstrates that AI-driven automation can perform most of the **structural and first-pass localization work** for key art, while leaving final creative control with designers and marketers.
 
-1. Accept a single English promotional poster as input (flat image for PoC, later possibly PSD).
-2. Automatically detect and read the English text.
-3. Translate the text into one of several target languages.
-4. Remove the original text and reconstruct ("inpaint") any newly-exposed background image.
-5. Render the translated text back onto the poster in a visually coherent way.
-6. Output a localized image suitable for designer review and final polish.
+For a single English master poster (flat image):
 
-The PoC aims for roughly 80–90 percent automation, not complete replacement of human review. Ideally, human review will be minimize to final review & polishing.
+1. Accept an English promotional poster as input (JPG/PNG; flat image for PoC, PSD in future phases).
+2. Automatically detect and read the English text (OCR) and identify its bounding boxes and orientation.
+3. Classify each text region by semantic role (e.g., main title, tagline, release message, credits block, rating badge, URL).
+4. Apply studio-style policies to decide which regions are localizable vs locked (titles, taglines, release lines, credits roles, URLs, logos, etc.).
+5. Let a Marketing Localization Lead review and finalize a reusable **poster template** once per asset:
+   - Confirm roles, adjust bounding boxes, and set simple layout constraints.
+   - Bounding boxes and coordinates are stored in a **canonical, normalized form** (percentages of image width/height) so they remain valid at any resolution.
+6. For one or more target locales, generate AI-assisted localized text for localizable regions and render **per-locale preview images** that:
+   - Place localized text where it fits within constraints.
+   - Clearly mark “FPO/manual art required” regions where automatic layout is not safe.
+7. Export a per-locale package consisting of:
+   - A preview JPG/PNG.
+   - A localized `PosterTemplate` JSON describing all regions, their final text, and render status.
+
+Local designers and marketers then use these packages to finalize PSDs and deliverables in their existing tools and DAM systems. Future phases may add direct PSD layer manipulation and background inpainting; this PoC stops at high-quality previews and structured template export.
+
+The PoC aims for roughly **80–90 percent automation** of the repetitive structural and first-pass localization work, not complete replacement of human review. Ideally, human effort is focused on final review, polishing, and truly creative adjustments.
 
 ### 2.3 Success Criteria (for demo)
 
 For a small set of curated posters:
 
-- User can upload an English poster and select a target language (FR, ES, JA, KO).
-- System returns a localized poster image that:
-  - Preserves the original artwork and layout.
-  - Replaces English text with translated text in roughly the same locations.
-  - Reasonably approximates the original visual style of the text (font family class, weight, size, and color).
-  - Produces plausible background fill where original text is removed.
-- A designer could plausibly take the output into Photoshop for final polish, rather than starting from scratch.
-
-### 2.4 Non-Goals (PoC Scope Limits)
-
-- Perfect typographic matching of arbitrary proprietary fonts.
-- Handling complex 3D or highly stylized title treatments.
-- Curved, arced, heavily rotated, or perspective-warped text. (V1 focuses on predominantly horizontal text.)
-- Batch processing, job queue management, or multi-user load.
-- Production-grade security, auth, and rate limiting.
-- Full internationalization nuance (e.g., legal disclaimer variants per territory).
-
----
-
-## 3. Primary Use Cases
-
-### 3.1 UC-1: Localize a Single Poster
-
-Actor: Studio marketing or localization staff (demo viewer).
-
-Preconditions:
-
-- User can access the web UI.
-- Poster image is a flat JPG/PNG at moderate resolution.
-
-Main Flow:
-
-1. User navigates to the Media Promo Localizer page.
-2. User uploads a poster image (JPG/PNG).
-3. User selects a target language (FR, ES, JA, KO).
-4. User clicks Localize Poster.
-5. UI shows progress messages such as "Analyzing poster…", "Translating text…", "Rendering localized version…".
-6. When complete, UI shows a before/after comparison: original English poster vs localized poster.
-7. User may download the localized poster as a PNG.
-8. (Optional, post-v1) User may download a layered PSD.
-
-Postconditions:
-
-- Localized poster is available for human designer review and polish.
-
-### 3.2 UC-2: Demo Scenario for Execs
-
-A curated demo flow used in an exec meeting:
-
-1. Load known sample poster A (English).
-2. Localize to Spanish and show before/after.
-3. Localize to Japanese to demonstrate non-Latin script handling.
-4. Explain that the same pipeline can localize to additional languages and integrate with studio asset pipelines.
+- The system can ingest **real, high-resolution** poster images:
+  - Internally downscaling for OCR/analysis as needed,
+  - While preserving and displaying a full-resolution preview to the user.
+- Auto-detection and classification of text regions is:
+  - Correct or easily fixable for the majority of regions via a single human review pass.
+  - Robust enough to handle:
+    - Multiple text roles (titles, taglines, release messages, credits blocks, URLs, badges).
+    - Angled text and dense credits bands with overlapping elements (logos, URLs, rating boxes).
+- A Marketing Localization Lead can:
+  - Take a master poster from upload to **published template v1** in a small number of edits.
+  - Reuse that template to generate localization packages for several locales without structural rework.
+- Per-locale outputs:
+  - Contain sensible AI-assisted translations/transcreations for key text (especially taglines and release messages).
+  - Produce believable preview images that look like plausible localized key art, with FPO indicators where human art is required.
+  - Demonstrate the economic advantage that **template work scales with image count, while localization benefits scale with locale count**.
+- The overall demo clearly shows:
+  - “We analyze a poster once, then fan out many language-ready variants,”
+  - While keeping final creative and legal responsibility firmly in human hands.
 
 ---
 
-## 4. Constraints and Assumptions
+## 3. Actors & Responsibilities
 
-### 4.1 Input Constraints
+### 3.1 Global Marketing Lead
 
-- Input is a single, flat poster image (JPG/PNG).
-- Resolution: arbitrary, but internally we will downscale the long edge to roughly 1600–2500 px for PoC performance.
-- Posters used for the demo will have predominantly horizontal text (no complex curves/shapes).
+- Owns the campaign and decides which key art assets and markets should be localized.
+- May define high-level policies (e.g., whether main titles are localized in certain scripts or specific markets).
+- Approves which PoC outputs are used as internal demos vs shared with external stakeholders.
 
-### 4.2 Target Languages
+### 3.2 Marketing Localization Lead (MLL)
 
-Initial languages:
+_Primary user of this tool in the PoC._
 
-- French (FR)
-- Spanish (ES)
-- Japanese (JA)
-- Korean (KO)
+- Operates the Media Promo Localizer.
+- Uploads master artwork and runs auto-tagging.
+- Reviews and corrects AI classification of text regions.
+- Sets translation/locking policies per region (within the bounds of studio policy).
+- Publishes the final **`PosterTemplate`** for each asset.
+- Initiates locale runs and exports localization packages.
+- Provides feedback on AI performance and where manual intervention is still required.
 
-Future languages (out of scope for v1) may include German, Italian, other target markets as needed
+### 3.3 Local Market Marketers / Creative Teams (outside the tool)
 
-### 4.3 Fonts and Styles
+- Receive localized text proposals, previews, and template data from the central team.
+- Decide whether to accept, adapt, or ignore AI text suggestions.
+- Apply final copy and layout in PSD (or equivalent) tools using their existing workflows.
+- Ensure cultural, linguistic, and legal correctness for their market.
+- Deliver finished localized artwork back into the studio DAM.
 
-- PoC will not perform automatic font identification.
-- Instead, it will use a small set of pre-configured fonts per "text role" (title, tagline, credits), with separate choices for Latin vs CJK scripts.
-- Color and style will be approximated based on sampled colors and simple effects (solid fill, optional outline/drop shadow).
+> **Note:** For this PoC, Local Market teams are **conceptual** actors. The tool’s output is designed with them in mind, but they do not directly interact with the system UI.
 
-### 4.4 Deployment Constraints
+### 3.4 Legal / Compliance / Rating Bodies (context only)
 
-- Frontend (React/Vite app) deployed to Cloudflare Pages.
-- Backend AI/API service deployed to Railway as a Python web service.
-- External ML services (OCR, translation, inpainting) accessed via HTTPS APIs.
-- PoC is not expected to handle large concurrent load.
-
----
-
-## 5. System Architecture
-
-### 5.1 High-Level Components
-
-1. Web Frontend (Cloudflare Pages)
-   - React/TypeScript app (based on ai-studio template).
-   - Provides the Media Promo Localizer UI.
-   - Handles file upload, language selection, progress display, and result viewing.
-
-2. Poster Localization Service (Backend on Railway)
-   - Python-based HTTP API (e.g., FastAPI).
-   - Exposes REST endpoints for:
-     - POST /api/translate-poster – main localization endpoint.
-     - GET /health – health check.
-   - Implements the localization pipeline (OCR → translation → inpainting → rendering → export).
-
-3. External Services
-   - OCR Provider – Cloud OCR (e.g., Google Vision or Azure Read) for text detection and bounding boxes.
-   - Translation Provider – LLM-based translator (OpenAI) with prompts tuned for poster copy and credits.
-   - Inpainting Model – Image inpainting (e.g., LaMa) hosted via a model-serving platform (e.g., Replicate or similar).
-
-### 5.2 Data Flow (Request Lifecycle)
-
-1. User uploads poster and selects language in the frontend.
-2. Frontend sends a multipart/form-data POST request with image plus target language to backend /api/translate-poster.
-3. Backend:
-   - Validates inputs.
-   - Downscales the image to a working resolution.
-   - Calls OCR provider to obtain text blocks and bounding boxes.
-   - Classifies blocks into text roles (title, tagline, credits, other).
-   - Sends grouped text blocks to translation provider (batched), with different prompts for body vs credits.
-   - Builds a text mask covering the bounding boxes of all text regions.
-   - Calls inpainting model with original image plus mask to remove text and reconstruct background.
-   - Renders translated text back onto the inpainted background using role-based fonts and layout.
-   - Optionally builds a layered PSD.
-   - Returns a response containing a localized PNG (as base64 or URL) and optional metadata about text blocks.
-
-4. Frontend receives response and updates the UI with before/after preview and download links.
-
-### 5.3 Architecture Style
-
-- Backend: Modular, step-based pipeline pattern.
-- Service integrations: Strategy pattern via abstract client interfaces for OCR, translation, and inpainting.
-- Frontend: Single-page flow for this PoC, using component-based composition.
+- Govern rating badges and legal copy (e.g., MPAA/MPA ratings, partner legal language).
+- Their requirements are modeled as **policies** and simulated assets in the PoC.
+- Actual legal approval workflows and integrations remain **out of scope**.
 
 ---
 
-## 6. API Design (Backend)
+## 4. Artifacts: Inputs & Outputs
 
-### 6.1 POST /api/translate-poster
+### 4.1 Inputs
 
-Description:
-Main entry point for localizing a single poster image into one target language.
+- **Master key art (flat image)**
+  - Format: JPG/PNG.
+  - Represents the approved global one-sheet or hero artwork.
+  - The system may internally downscale the image to an “analysis resolution” for OCR and layout detection.
+  - All bounding boxes and coordinates are stored in a **canonical normalized form**:
+    - `x`, `y`, `width`, `height` as percentages of image width/height (0–1),
+      so they remain valid at any display resolution.
 
-Request (multipart/form-data):
+- **Campaign configuration** (conceptual for PoC)
+  - Show/film identifier.
+  - List of target locales (e.g., `es-MX`, `fr-FR`, `pt-BR`, `ja-JP`, `ru-RU`, `vi-VN`).
+  - Brand rules (simulated in PoC), such as:
+    - Which semantic roles are typically localizable vs locked.
+    - Script-based title policy (e.g., non-Latin scripts may localize main titles).
+    - Placeholders for fonts (e.g., “StandardBillingCondensed”) and legal snippets.
 
-- file (required): Poster image binary (JPG/PNG).
-- target_language (required): String enum: fr, es, ja, ko.
-- poster_id (optional): String identifier for known posters (used for per-poster style configs in future).
+### 4.2 Outputs
 
-Response (JSON):
+- **Master `PosterTemplate` JSON** for the asset:
+  - List of **regions**, each with:
+    - A unique ID.
+    - Normalized bounding box (`x`, `y`, `width`, `height` in 0–1 space).
+    - Semantic role (e.g., `MAIN_TITLE`, `AUX_TITLE`, `TAGLINE`, `RELEASE_MESSAGE`, `RELEASE_DATE`,
+      `DIRECTOR_PROMO`, `CREDITS_BLOCK`, `RATING_BADGE`, `PARTNER_LEGAL_IMAX`, `URL_MAIN`, `SOCIAL_HANDLE`).
+    - Locking / translation policy flags (e.g., `locked`, `localizable`, `fpoOnly`).
+    - Layout constraints (e.g., `maxHorizontalExpansionPct`, `minScale`, `maxScale`).
+  - Optional grouping constructs:
+    - e.g., a logical `CREDITS_BAND` region whose `children` are `CREDITS_BLOCK`, `RATING_BADGE`, `STUDIO_LOGO`, `URL_MAIN`, etc.
 
-    {
-      "status": "success",
-      "target_language": "es",
-      "localized_image": {
-        "format": "png",
-        "data": "<base64-encoded PNG>"
-      },
-      "metadata": {
-        "original_width": 2000,
-        "original_height": 3000,
-        "working_width": 1600,
-        "working_height": 2400,
-        "text_blocks": [
-          {
-            "id": "title-1",
-            "role": "title",
-            "source_text": "STAR HEROES",
-            "translated_text": "HÉROES ESTELARES",
-            "bbox": [100, 200, 900, 300]
-          }
-        ]
-      }
-      "timings": {
-        "total_ms": 8423,
-        "steps": {
-          "load_normalize_ms": 35,
-          "ocr_ms": 1290,
-          "translation_ms": 2150,
-          "inpainting_ms": 3670,
-          "render_ms": 980,
-          "export_ms": 298
-        }
-      }
+- **Per-locale localization packages**:
+  - Localized `PosterTemplate` JSON including, per region:
+    - The localized text chosen/proposed for that locale.
+    - Render status (`OK`, `FPO_OVERFLOW`, `FPO_MANUAL_ONLY`, etc.).
+  - Per-locale **preview image** (JPG/PNG) based on the master poster:
+    - Localized text drawn where it fits within the region’s constraints.
+    - Distinct visual treatment for FPO / manual-art-required regions.
+
+These outputs are designed to “hand off cleanly” to local market teams who continue working in PSD/DAM, even though PSD/DAM integrations are not implemented in the PoC.
+
+---
+
+## 5. Core Principles
+
+1. **Do the structural work once, reuse across many markets**
+   - Each key art asset gets a single, reusable `PosterTemplate`.
+   - The structural thinking (what is text, what role it plays, what translates vs stays) is done once centrally instead of repeated per locale.
+
+2. **AI assists, humans decide**
+   - AI handles:
+     - OCR, region detection, role classification.
+     - Initial text proposals for target locales.
+   - Humans (Marketing Localization Lead + local markets) retain:
+     - Final say on region roles and layout constraints.
+     - Final copy choices and any nuanced local adaptation.
+   - The tool never silently overrides confirmed human decisions.
+
+3. **Policy-driven translation vs locking**
+   - Localizability is governed by **explicit policies**, not opaque LLM behavior:
+     - e.g., main titles locked by default except in certain scripts/markets.
+     - URLs, social handles, logos, and rating badges are locked or DAM-swapped, not translated.
+     - Credits roles are localizable while names are preserved.
+   - Policies can be tuned over time without changing model behavior.
+
+4. **Normalized geometry for flexible resolution**
+   - All bounding boxes and coordinates are stored as normalized percentages of the image size.
+   - The same template can be applied to:
+     - Internal analysis images (downscaled).
+     - High-resolution previews.
+     - Future integrations with PSDs or alternate formats.
+
+5. **No risky layout guesses**
+   - The system uses simple, conservative rules:
+     - Attempt to “cheat wider” within configured limits before scaling font size down.
+     - Never move text into fundamentally new image areas or drastically change composition.
+   - When text cannot be safely auto-laid out:
+     - The region is marked as FPO / manual-art-required.
+     - Human designers retain control over complex adjustments.
+
+6. **Respect for legal & partner rules**
+   - Rating badges, partner logos, and associated legal copy:
+     - Are treated as locked or DAM-sourced elements.
+     - Are not free-form translation fields in the PoC.
+   - The PoC simulates these behaviors; actual legal systems and approval flows live outside this spec.
+
+---
+
+## 6. End-to-End Workflow (POC)
+
+### 6.1 Stage 1 – Auto-Tag Master Artwork
+
+**Goal:** Produce a draft `PosterTemplate` from a flat master image.
+
+1. **Upload master poster**
+   - The Marketing Localization Lead uploads a JPG/PNG for a given campaign asset.
+   - The system stores the original at full resolution and creates an internal analysis copy (downscaled if needed).
+
+2. **OCR & region detection**
+   - The system runs OCR and object detection over the analysis image to identify:
+     - Text regions (lines and blocks), including angled text.
+     - Bounding boxes and orientation.
+   - Bounding boxes are normalized to `[0, 1]` relative to the image dimensions.
+
+3. **Two-pass analysis of the credits band**
+   - **Pass 1:** Detect small discrete elements in the lower band, such as:
+     - Rating badges, studio and partner logos.
+     - URLs and social handles.
+   - **Pass 2:** Using what remains in that band:
+     - Identify dense text areas as `CREDITS_BLOCK`.
+     - Model these as separate child regions under a logical `CREDITS_BAND`, allowing overlap.
+
+4. **Semantic role classification**
+   - Using heuristics + an LLM, the system assigns each detected text region a semantic role, including (but not limited to):
+     - `MAIN_TITLE`, `AUX_TITLE`, `TAGLINE`, `RELEASE_MESSAGE`, `RELEASE_DATE`,
+       `DIRECTOR_PROMO`, `PRODUCER_PROMO`, `CAST_PROMO`,
+       `CREDITS_BLOCK`, `RATING_BADGE`, `PARTNER_LEGAL_IMAX`,
+       `URL_MAIN`, `SOCIAL_HANDLE`.
+   - The LLM’s job is **role classification only**; it does not decide lock/translate behavior.
+
+5. **Policy application (lock vs localizable)**
+   - A policy engine sets initial flags per region:
+     - Titles: locked by default (configurable per market/script).
+     - Taglines / promo copy: localizable via transcreation.
+     - Release lines and dates: localizable with locale-specific formatting rules.
+     - URLs / socials / logos / badges: locked or DAM-swapped, not translated.
+     - Credits block: roles localizable, names preserved.
+   - Layout defaults (e.g., maximum horizontal expansion, minimum scale factor) are set according to role and studio guidelines.
+
+6. **Draft `PosterTemplate` created**
+   - The system persists a draft `PosterTemplate v0`:
+     - Regions, semantic roles, normalized bounding boxes, lock flags, and layout constraints.
+
+---
+
+### 6.2 Stage 2 – Template Review & Approval
+
+**Goal:** Let the Marketing Localization Lead finalize the template **once per asset**.
+
+1. **Visual review UI**
+   - The master poster is displayed at a visually appropriate resolution.
+   - Color-coded overlays indicate region types (e.g., localizable vs locked vs FPO-only).
+   - Selecting a region reveals its role, bounding box, and policies.
+
+2. **Region edits**
+   - The Marketing Localization Lead can:
+     - Correct misclassified semantic roles.
+     - Adjust normalized bounding boxes (drag/resize) to fine-tune region geometry.
+     - Configure layout constraints:
+       - Allow/forbid horizontal expansion (`maxHorizontalExpansionPct`).
+       - Set min/max font scale factors.
+     - Mark regions as FPO-only where automated rendering is not desired.
+     - Override initial locked/localizable flags when campaign-specific exceptions apply.
+
+3. **Overlap handling in credits band**
+   - The credits band is treated as a logical group containing:
+     - `CREDITS_BLOCK`, `RATING_BADGE`, `STUDIO_LOGO`, `PARTNER_LOGO`, `URL_MAIN`, etc.
+   - Overlapping bounding boxes are allowed and expected:
+     - Each child has its own semantics and lock/translate policy.
+
+4. **Template publication**
+   - When the MLL is satisfied, they publish `PosterTemplate v1` for this asset.
+   - This is typically a one-time operation:
+     - The same template is reused across locales and future runs.
+     - Structural auto-tagging is not repeated unless the underlying art changes.
+
+---
+
+### 6.3 Stage 3 – Locale Runs & Export
+
+**Goal:** Use the finalized template to generate AI-assisted localization packages for one or many target locales.
+
+1. **Locale selection**
+   - The MLL selects one or more target locales (e.g., `es-MX`, `fr-FR`, `ja-JP`).
+   - The system uses the published `PosterTemplate v1` as the structural blueprint.
+
+2. **AI text proposals (per locale)**
+   - For each locale and each **localizable** region:
+     - Generate direct translations where appropriate (e.g., `RELEASE_MESSAGE`, `RELEASE_DATE`, boilerplate legal where allowed).
+     - Generate transcreative variants for taglines and promo copy, aiming to preserve tone and impact over literal wording.
+   - Title translation policies (e.g., non-Latin scripts may localize main titles) are respected according to configuration, but local markets retain final authority outside this PoC.
+
+3. **Layout constraint enforcement**
+   - For each localized string:
+     - The system attempts to place the text within the region’s normalized bounding box.
+     - It may:
+       - Expand the region horizontally up to `maxHorizontalExpansionPct`.
+       - Scale the font down to `minScale` if needed.
+     - If the text still cannot fit within safe constraints:
+       - The region is marked as `FPO_OVERFLOW` or similar.
+       - The preview visually indicates that manual design work is needed.
+
+4. **Export per-locale localization packages**
+   - For each locale, the system produces:
+     - A **preview image** (JPG/PNG) derived from the master poster:
+       - Localized text placed in all `OK` regions.
+       - FPO/overflow regions visibly highlighted as needing human art.
+     - A **localized `PosterTemplate` JSON** including:
+       - Final chosen/proposed text for each region.
+       - Render status and any overflow flags.
+
+5. **Handoff to local markets**
+   - Local market teams receive:
+     - The preview (to understand intent and placement).
+     - The localized template (to see exact text and region metadata).
+   - They then:
+     - Apply final copy and layout in PSD or equivalent tools.
+     - Make any necessary creative adjustments.
+   - Final PSDs and JPG/PNGs are checked into the studio DAM under existing processes (outside this PoC’s scope).
+
+---
+
+## 7. Out-of-Scope Items (PoC)
+
+To keep the PoC focused and achievable, the following items are explicitly **out of scope** and may be addressed in future phases:
+
+1. **Direct PSD integration**
+   - Reading, modifying, or writing Photoshop PSD files.
+   - Preserving or editing live text layers, masks, or adjustment layers.
+   - Mirroring the exact PSD layer structure in localized outputs.
+
+2. **Background inpainting and complex compositing**
+   - Automatically removing existing text from the image and reconstructing detailed background art.
+   - Complex compositing operations (e.g., integrating new visual elements beyond text).
+
+3. **Full DAM and Creative Cloud integrations**
+   - Direct integration with studio DAM systems.
+   - Adobe Creative Cloud / CC Libraries connectors.
+   - Automated check-in/check-out or versioning workflows.
+
+4. **Legal, MPA/MPA-style approvals, and partner systems**
+   - Automated legal compliance scans beyond simple policy checks.
+   - Direct submission to rating boards or partner platforms.
+   - Approval status tracking or audit trails.
+
+5. **Advanced layout and design changes**
+   - Moving or resizing major non-text visual elements.
+   - Advanced typographic effects (curved baselines, complex warps, highly stylized text treatments).
+   - Global re-layout of the poster beyond simple bounding-box-based text placement.
+
+6. **Production-grade security and multi-tenant support**
+   - Fine-grained access control, roles, and multi-tenant configurations.
+   - Hardening for production studio environments (beyond reasonable PoC security hygiene).
+
+The PoC focuses on demonstrating that:
+
+- A single **master structural template** can be created from a poster.
+- That template can be reused across many locales.
+- AI can meaningfully reduce the repetitive work of text localization and first-pass layout,
+  while respecting existing PSD and DAM-centric workflows and keeping humans in control.
+
+---
+
+## 8. Technical Constraints & Assumptions (PoC)
+
+### 8.1 Backend stack
+
+- The backend is implemented in **Python** using **FastAPI** and runs under an ASGI server such as **Uvicorn**.
+- All I/O-heavy operations (file handling, simulated pipeline stages) are implemented with **async** functions.
+- The backend lives under `apps/api/` and is the only area modified for Sprint 2.
+
+### 8.2 Frontend & API boundary
+
+- The frontend lives under `apps/web/` and communicates exclusively with the backend via HTTP/JSON APIs defined in `artifacts/API_Documentation.md`.
+- For this PoC, the frontend is treated as a **trusted client**; no API authentication or authorization is enforced.
+- Sprint 2 will make only minimal adjustments to the existing UI:
+  - Wire the upload form to `POST /v1/localization-jobs`.
+  - Poll `GET /v1/localization-jobs/{jobId}` and show progress/results.
+- The full “Template Review” UI (for Marketing Localization Lead adjustments) will be implemented in a later sprint.
+
+### 8.3 File handling
+
+- Input images are **flat** JPG/PNG posters; PSD and multi-layer formats are not supported in this PoC.
+- The backend stores the original upload at full resolution on local disk in a temporary area, e.g.:
+  - `apps/api/tmp/uploads/{job_id}/poster.{ext}`
+- An internal “analysis” copy may be created with a maximum long edge (e.g., `ANALYSIS_MAX_LONG_EDGE_PX = 3072`) for OCR and layout detection.
+- Cleanup of temporary files is **best-effort**:
+  - Jobs have a configurable TTL after which their files should be deleted.
+  - The PoC is not designed for long-term archival of uploads.
+
+### 8.4 Coordinate system
+
+- All region geometry is stored in a **normalized coordinate system** independent of resolution:
+  - `x`, `y` represent the **top-left corner** of the bounding box, expressed as fractions of the image width/height in the range `[0.0, 1.0]`.
+  - `width`, `height` are the box width/height, also expressed as fractions of the image width/height.
+  - `rotation_deg` is an optional numeric field representing **clockwise rotation in degrees** (0° = baseline horizontal).
+- Rotation is applied around the **center of the bounding box**, not the top-left corner.
+- This allows the same `PosterTemplate` to be applied to:
+  - The analysis image,
+  - High-resolution previews,
+  - Future PSD-based workflows.
+
+### 8.5 Persistence & durability
+
+- Job state is stored in an **in-memory repository** (e.g., a process-local dictionary wrapped by a `JobRepository` abstraction).
+- This repository:
+  - Is not durable across process restarts.
+  - May evict jobs after a configurable TTL (e.g., 1–2 hours) or when a max job count is exceeded.
+- Uploaded files are stored on local disk under a temporary path and are subject to the same TTL/eviction rules.
+- This design is sufficient for a demo and light public usage but **not** for production workloads.
+- The `JobRepository` abstraction is defined so that future implementations (e.g., SQLite/Postgres) can be plugged in without changing API contracts.
+
+### 8.6 Job lifecycle
+
+- All long-running work is modeled as an **asynchronous job**:
+  - `POST /v1/localization-jobs` creates a new job and returns a `jobId`.
+  - `GET /v1/localization-jobs/{jobId}` returns job status and details.
+- Jobs move through a simple lifecycle:
+  - `PENDING` → `RUNNING` → `COMPLETED` or `FAILED`.
+- Internally, the mock pipeline simulates multiple stages (e.g., upload, OCR, analyze, localize) and records timing per stage.
+- The frontend uses a simple **polling** model to track job progress; websockets or server-sent events are out of scope for this PoC.
+
+### 8.7 Non-functional limits
+
+- Max upload size is enforced (e.g., `MAX_UPLOAD_SIZE_MB = 20`); larger uploads are rejected with a clear error.
+- Supported MIME types are limited to `image/jpeg` and `image/png`; all others are rejected.
+- The system is designed for a **small number of concurrent users** and is not load-tested for high throughput.
+- The mock pipeline is tuned for demo responsiveness:
+  - Typical job completion under ~10 seconds for reasonably sized posters.
+  - Stage timings are simulated within realistic ranges to feel believable, not instantaneous.
+
+### 8.8 Logging & observability
+
+- The backend uses Python’s built-in `logging` module for application logs.
+- Log level is controlled via configuration (e.g., `LOG_LEVEL` env var):
+  - `DEBUG` for more verbose development output (method entry/exit, key decisions).
+  - `INFO` or higher for demo/“prod-ish” deployments.
+- At minimum, the system logs:
+  - Job creation (jobId, filename, requested locales).
+  - Job completion or failure (jobId, status, total duration).
+  - Validation and processing errors with appropriate error codes.
+- Logs are written to stdout/stderr for capture by the hosting platform (e.g., Railway); structured logging and external log sinks are future enhancements.
+
+### 8.9 Security
+
+- The PoC does **not** implement user authentication or fine-grained authorization.
+- It is assumed to run in a controlled environment and/or behind a trusted frontend.
+- No secrets (API keys, tokens) are required or used in Sprint 2; `LOCALIZATION_MODE` must remain `mock`.
+- Production-grade security (SSO, JWT, role-based access, rate limiting, etc.) is explicitly out of scope and must be added before any real studio deployment or handling of sensitive assets.
+
+### 8.10 Configuration
+
+- Configuration is supplied via environment variables; `.env` files are ignored by git.
+- At minimum, the following are supported in Sprint 2:
+  - `LOCALIZATION_MODE` (must be `mock`).
+  - `MAX_UPLOAD_SIZE_MB` (default 20).
+  - `ANALYSIS_MAX_LONG_EDGE_PX` (default e.g., 3072).
+  - `JOB_TTL_SECONDS` (default e.g., 7200).
+  - `LOG_LEVEL` (default `INFO`).
+- Additional configuration (e.g., supported locales list, mock timing ranges) may be introduced in later sprints as needed.
+
+---
+
+## 9. Logging & Observability
+
+### 9.1 Goals
+
+For Sprint 2, logging is primarily for:
+
+- Local debugging during development.
+- Basic diagnostics when the PoC is deployed to a shared environment (e.g., Railway).
+- Providing enough context to understand failures without attaching a full debugger.
+
+We are **not** building a full observability stack (no distributed tracing, metrics aggregation, or log shipping) in this sprint, but the design should make it easy to add those later.
+
+### 9.2 Logging Approach
+
+- Use Python’s built-in `logging` module, configured in a small `logging_config.py` helper under `apps/api/`.
+- Configure a **single application logger** namespace (e.g., `media_promo_localizer`) that all modules inherit from.
+- Emit logs in **structured-ish** form (key information as fields in the message), while still using simple text output for PoC.
+
+Example (conceptual, not code):
+
+- `INFO  JobCreated jobId=abc123 targetLang=es-MX fileName=minecraft-us-onesheet.png`
+- `INFO  JobUpdated jobId=abc123 stage=OCR status=completed durationMs=842`
+- `ERROR JobFailed jobId=abc123 stage=TRANSLATION errorCode=TRANSLATION_MODEL_ERROR`
+
+### 9.3 Log Levels
+
+Recommended levels:
+
+- `DEBUG` – Detailed internal information (e.g., validation branches, intermediate decisions). Only enabled in local/dev.
+- `INFO` – High-level lifecycle events:
+  - Job created / updated / completed / failed.
+  - Backend startup and shutdown.
+  - Health checks (at a low frequency).
+- `WARNING` – Recoverable anomalies:
+  - Suspicious but non-fatal input.
+  - File that is technically valid but close to size limits.
+- `ERROR` – Request-level failures:
+  - Exceptions during processing (caught and mapped to error responses).
+- `CRITICAL` – Only for unrecoverable situations:
+  - Misconfiguration at startup (e.g., missing env var required for a future live mode).
+  - Serious runtime issues that might require a restart.
+
+The **default log level** for the PoC will be `INFO`, with an environment variable (e.g., `LOG_LEVEL=DEBUG`) enabling more verbose output.
+
+### 9.4 Log Fields
+
+Where reasonable, logs should include:
+
+- `jobId` – For any message related to a particular localization job.
+- `stage` – One of `upload`, `pipeline_orchestration`, `mock_ocr`, `mock_translation`, `mock_inpainting`, `serialization`.
+- `targetLang` – BCP-47 code if applicable.
+- `durationMs` – For completed stages or total job duration.
+- `errorCode` – When logging an error, mirror the internal error code used in the API error payload.
+
+We don’t need full JSON logs in Sprint 2, but we should keep the **field naming consistent** to enable later adoption of structured logging.
+
+---
+
+## 10. Error Handling & HTTP Semantics
+
+### 10.1 Principles
+
+Error handling should:
+
+1. **Protect implementation details**
+   - Never leak low-level stack traces or vendor error messages to the client.
+   - Map internal exceptions to clean, documented error codes/messages.
+
+2. **Be predictable**
+   - Use a small, well-defined set of HTTP status codes.
+   - Use a consistent JSON error envelope.
+
+3. **Be diagnosable**
+   - Include error codes and human-readable messages in responses.
+   - Log the underlying exception with enough context to debug.
+
+### 10.2 Error Model
+
+All non-2xx responses from the backend will use a **standard error envelope**:
+
+```json
+{
+  "error": {
+    "code": "SOME_ERROR_CODE",
+    "message": "Human-readable message.",
+    "details": {
+      "...": "Optional additional fields depending on error type"
     }
+  }
+}
+```
 
-Notes:
+#### 10.2.1 Validation / input errors (`400`)
 
-- For v1, returning localized_image as a base64 string is acceptable. Later, this may become a signed URL to storage (e.g., S3).
-- metadata.text_blocks assists debugging and future UI overlays, but the frontend does not need to rely on it for the basic demo.
-- The `timings` field provides coarse-grained performance data for the request.
-  - `total_ms` is the approximate end-to-end duration of the pipeline for this poster.
-  - `steps` contains per-step timings for key pipeline phases: image normalization, OCR, translation, inpainting, text rendering, and export.
-- These timing values are intended for **demo and benchmarking** purposes and do not require millisecond-perfect accuracy; simple timestamp difference measurements before and after each step are sufficient.
+Examples:
 
-### 6.2 GET /health
+- Missing `targetLanguage`.
+- Unsupported file type or corrupted upload (detected at parse-time).
+- Invalid `jobId` format.
 
-Description:
-Simple health check endpoint for monitoring and deployment validation.
+HTTP status: **400 Bad Request**
 
-Response:
+Example payload:
 
-    { "status": "ok" }
+```json
+{
+  "error": {
+    "code": "INVALID_INPUT",
+    "message": "targetLanguage is required.",
+    "details": {
+      "field": "targetLanguage"
+    }
+  }
+}
+```
 
----
+If multiple validation problems exist, we may include a `problems` array in `details`, but for Sprint 2 a single primary message is sufficient.
 
-## 7. Localization Pipeline
+#### 10.2.2 Domain errors (`404` / `409`)
 
-The backend implements a linear pipeline of named steps. Each step takes a shared PipelineContext and returns an updated context or raises an error.
+Examples:
 
-### 7.1 Pipeline Steps (Logical)
+- `jobId` not found.
+- Job exists but is in a terminal failure state and cannot be retried (for a future extension).
 
-1. Step 1 – Load and Normalize Image
-   - Input: Raw image bytes.
-   - Actions: validate file type, decode image, compute working resolution, downscale if needed.
-   - Output: Normalized image in context.image_working and original dimensions in metadata.
+HTTP status:
 
-2. Step 2 – OCR and Text Block Detection
-   - Input: context.image_working.
-   - Actions: call OCR provider and extract text blocks with bounding boxes, orientation, and confidence.
-   - Output: context.text_blocks_raw.
+- **404 Not Found** – Job doesn’t exist.
+- **409 Conflict** – (Reserved for future behavior changes like retry conflicts).
 
-3. Step 3 – Text Role Classification and Grouping
-   - Input: context.text_blocks_raw.
-   - Actions: heuristically classify blocks as title, tagline, credits, or other based on size and position; optionally group adjacent blocks.
-   - Output: context.text_blocks with role and grouping info.
+Example (job not found):
 
-4. Step 4 – Translation
-   - Input: context.text_blocks and target language.
-   - Actions: batch text blocks by role, call translation provider (LLM) with strict instructions not to translate names in credits and to preserve approximate line structure.
-   - Output: updated context.text_blocks with translated_text filled in.
+```json
+{
+  "error": {
+    "code": "JOB_NOT_FOUND",
+    "message": "Localization job not found."
+  }
+}
+```
 
-5. Step 5 – Text Mask Generation and Inpainting
-   - Input: context.text_blocks and context.image_working.
-   - Actions: build a binary mask covering the bounding boxes of all text blocks, call inpainting model with original image plus mask.
-   - Output: context.image_background (working-resolution image with text removed and background reconstructed).
+#### 10.2.3 Internal / vendor errors (`500`)
 
-6. Step 6 – Text Layout and Rendering
-   - Input: context.image_background, context.text_blocks, target language.
-   - Actions: map text roles and languages to font families and base styles; for each text block, determine a text layout area based on the original bbox; fit translated text into the area by adjusting font size and line wrapping; render text onto a transparent layer or directly onto image_background.
-   - Output: context.image_localized_working (working-resolution localized poster).
+Even though Sprint 2 uses a mock engine, we define the shape now to keep the contract stable when Sprint 3 introduces live providers.
 
-7. Step 7 – Export and Scaling
-   - Input: context.image_localized_working.
-   - Actions: optionally upscale back towards the original resolution via resampling; encode localized image to PNG; (future) generate layered PSD with background and text layers.
-   - Output: context.localized_png_bytes, optional context.localized_psd_bytes.
+Examples:
 
-### 7.2 Pipeline Implementation Pattern
+- Underlying AI provider timeout.
+- OCR service throws an unexpected error.
+- Inpainting provider returns invalid data.
 
-- Use a small Pipeline class that maintains ordered steps.
-- Each step implements a run(context) method and has a name (e.g., OCR, TRANSLATION).
-- This structure allows future agentic behavior (conditional steps, retries, human-in-the-loop) without changing the core model.
+HTTP status: **500 Internal Server Error**
 
----
+Example:
 
-## 8. Backend Components and Interfaces
+```json
+{
+  "error": {
+    "code": "INTERNAL_ERROR",
+    "message": "Unexpected error while processing the job."
+  }
+}
+```
 
-### 8.1 API Layer
+Internally, logs should capture the real exception, including provider names, request IDs, and any debugging info that must NOT be sent to the client.
 
-- Framework: FastAPI (or similar modern Python web framework).
-- Responsibilities: HTTP request parsing and validation, invoking the pipeline, mapping outputs to HTTP responses, and converting exceptions into structured error responses.
+#### 10.2.4 Summary of HTTP Status Codes
 
-### 8.2 Pipeline Orchestrator
+- `200 OK` – Successful `GET /v1/localization-jobs/{jobId}` and `GET /health`.
+- `202 ACCEPTED` – Successful `POST /v1/localization-jobs` (job created and queued/processing).
+- `400 BAD_REQUEST` – Validation or parsing error.
+- `404 NOT_FOUND` – Unknown `jobId`.
+- `415 UNSUPPORTED_MEDIA_TYPE` – File type not allowed (e.g., non-image).
+- `500 INTERNAL_SERVER_ERROR` – Any unexpected internal failure.
 
-- Module: poster_localizer.pipeline (example name).
-- Responsibilities: own the PipelineContext data structure, define the ordered list of steps, coordinate execution, logging, and error propagation.
+#### 10.2.5 Health Response
 
-### 8.3 External Service Clients
+The health endpoint is intentionally simple and unauthenticated for the PoC.
 
-Each external dependency will have its own client interface with at least one concrete implementation.
+- **Method:** `GET /health`
+- **Status:** `200 OK` (always, unless the process is unhealthy enough to not respond)
+- **Body:**
 
-1. OCR Client
-   - Interface: IOcrClient with a method like recognize_text(image) -> List[TextBlockRaw].
-   - Implementation: CloudOcrClient using Google Vision or Azure Read.
-   - Handles HTTP calls, auth credentials, and error mapping.
+```json
+{
+  "status": "ok",
+  "uptimeSeconds": 1234,
+  "version": "0.2.0"
+}
+```
 
-2. Translation Client
-   - Interface: ITranslationClient with a method like translate(blocks, target_language, mode) -> List[TextBlock].
-   - Implementation: LlmTranslationClient using OpenAI.
-   - Handles prompt construction, response parsing, and name-preservation behavior.
-
-3. Inpainting Client
-   - Interface: IInpaintingClient with a method like inpaint(image, mask) -> image.
-   - Implementation: LamaInpaintingClient calling a hosted LaMa model.
-
-### 8.4 Rendering Engine
-
-- Responsibilities: map text roles and languages to font families and styles, perform basic text layout inside bounding boxes, render text onto images (using PIL or similar).
-
-### 8.5 Exporters
-
-- PngExporter – encodes the final image as PNG bytes.
-- PsdExporter (future or extended scope) – constructs a PSD with background plus text layers.
-
-### 8.6 Configuration and Secrets
-
-- Use environment variables for OCR API keys and endpoints, OpenAI API key, and inpainting service URL and auth.
-- Keep configuration centralized in a config module, not scattered.
+- `status` – `"ok"` in the PoC; in a more advanced setup, this could reflect deeper readiness checks.
+- `uptimeSeconds` – Approximate process uptime (optional but nice for demos).
+- `version` – Backend version (aligned with `FuncTechSpec` version).
 
 ---
 
-## 9. Frontend Requirements (Web App)
+## 11. API Endpoints (Sprint 2)
 
-### 9.1 Authentication (Stubbed for PoC)
+This section summarizes the endpoints the backend must implement in Sprint 2. The **canonical request/response schemas** remain in `artifacts/API_Documentation.md`; this section defines behavior and relationships.
 
-For this PoC, the application will include a simple **Login view** to demonstrate that authentication and access control are part of the expected UX, even though no real security will be implemented yet.
+### 11.1 `POST /v1/localization-jobs`
 
-Requirements:
+Create a new localization job.
 
-- Provide a dedicated **Login screen** with:
-  - Email field (text input)
-  - Password field (password input)
-  - “Log in” button
-- Any non-empty email and password combination is treated as valid.
-- On successful login:
-  - Store a simple “logged in” flag (e.g., in React state and/or localStorage).
-  - Route the user to the main **Poster Localizer** page.
-- The Poster Localizer page should be inaccessible (via normal navigation) until the user has “logged in”. A simple client-side check is sufficient for this PoC.
+**Purpose**
 
-The spec must clearly note that:
+- Accept a single poster file upload plus localization parameters.
+- Persist a `Job` record (in-memory for the PoC).
+- Start asynchronous mock processing of the pipeline stages.
+- Return a `jobId` the frontend can use to poll status.
 
-- This is a **stub implementation** intended only for demonstration.
-- In a production deployment, this view would be replaced by real authentication and authorization (e.g., studio SSO / identity provider).
+**Behavior**
 
-### 9.2 Poster Localizer Page
+- Accepts `multipart/form-data`:
+  - `file` – image file (JPG/PNG; high resolution allowed).
+  - `targetLanguage` – required BCP-47 code (e.g., `es-MX`).
+  - `sourceLanguage` – optional (default `en-US`).
+- Validates:
+  - File presence and non-zero size.
+  - Supported MIME type.
+  - Allowed maximum size (e.g., 20 MB).
+  - Valid `targetLanguage` format.
+- On success:
+  - Creates a new `jobId`.
+  - Stores `Job` record in the in-memory repository with initial status (`queued` / `processing`).
+  - Launches asynchronous mock pipeline work.
+  - Returns `202 Accepted` with job payload as defined in API docs.
 
-New feature page in the React app, e.g., /poster-localizer.
+**Error cases**
 
-Responsibilities:
+- Missing or invalid input → `400 INVALID_INPUT`.
+- Unsupported file type → `415 UNSUPPORTED_MEDIA_TYPE`.
+- Internal failure while creating job → `500 INTERNAL_ERROR`.
 
-- File upload (poster image).
-- Target language selection (FR/ES/JA/KO).
-- Trigger localization request.
-- Display progress messages while waiting.
-- Display original vs localized image once complete.
-- Offer download of localized PNG.
+### 11.2 `GET /v1/localization-jobs/{jobId}`
 
-### 9.3 UI Flow
+Fetch information about an existing localization job.
 
-1. Landing section with short description and Upload button.
-2. Once file is chosen, user selects target language from a dropdown.
-3. User clicks Localize Poster.
-4. Frontend transitions to a Processing state: shows a sequence of textual progress messages while awaiting the backend response.
-5. Upon success: shows side-by-side view of Original vs Localized and a Download PNG button.
-6. Upon error: shows a friendly error message and suggests trying again.
+**Purpose**
 
-#### 9.3.1 Processing State/Status
+- Provide the frontend with the current status of a job.
+- When complete, return:
+  - Stage timings.
+  - Any mock “intermediate insights” (e.g., detected text).
+  - URLs/paths or inline data for the localized output image.
 
-While the backend is processing the poster, the UI **must not** remain static. Instead, it should present:
+**Behavior**
 
-- A visible **animated indicator** (e.g., spinner or progress bar), and
-- A sequence of short **status messages** that communicate high-level pipeline phases, such as:
-  1. “Analyzing poster…”
-  2. “Translating text…”
-  3. “Reconstructing background…”
-  4. “Rendering localized version…”
+- Looks up job by `jobId`.
+- If found:
+  - Returns `200 OK` with job payload (status, timestamps, per-stage timings).
+  - For completed jobs, includes a reference to the processed image.
+- If job is still processing, status will indicate `processing` or the relevant stage and may optionally include a progress estimate.
 
-For v1 of the PoC:
+**Error cases**
 
-- It is acceptable for these phases to be **simulated entirely in the frontend** during a single API call (e.g., timed updates to the message every few seconds) rather than driven by real-time server events.
-- The primary goal is to ensure that during potentially long-running processing (tens of seconds to a couple of minutes), the user sees visible progress and understands that the system is working through multiple intelligent steps.
+- Unknown `jobId` → `404 JOB_NOT_FOUND`.
+- Internal lookup error → `500 INTERNAL_ERROR`.
 
-Later versions may replace this simulated sequence with actual step-aware progress updates from the backend (e.g., via polling or WebSockets).
+### 11.3 `GET /health`
 
-### 9.4 API Integration (Frontend)
+Simple health/liveness check for the backend.
 
-- Frontend will call the backend at a configurable base URL (e.g., VITE_API_BASE_URL).
-- Use fetch or a lightweight HTTP client to send a multipart POST request with file and target_language.
-- Expect JSON response with localized_image.data (base64) and basic metadata.
-- Convert base64 back to a Blob for display and download.
-
-### 9.5 Branding
-
-- Light, professional styling as Media Promo Localizer.
-- No real-world studio branding.
-- Optional fictitious logo or wordmark.
+- Returns `200 OK` with the JSON body described in **10.2.5**.
+- No authentication or parameters required.
 
 ---
 
-## 10. Translation Behavior
+## 12. Testing Strategy
 
-### 10.1 General Principles
+### 12.1 Goals
 
-- Use LLM-based translation to allow nuanced control over tone and preservation of names.
-- Translation must be deterministic enough for a demo; avoid random creative rewrites.
+- Ensure that the core backend behavior is **reliable and repeatable**.
+- Demonstrate **mature engineering practices** (unit tests, integration tests).
+- Provide a safety net for refactoring, especially when moving from `MockLocalizationEngine` to future live providers.
 
-### 10.2 Credits Handling
+All tests will use `pytest` and live under `apps/api/tests/`.
 
-- For blocks identified as credits, translate role words (“Directed by”) and prepositions, but do not translate person or company names.
-- Preserve overall line structure; names remain in Latin script.
+### 12.2 Unit Tests
 
-### 10.3 Batching
+**Targets**
 
-- Text blocks should be passed to the LLM in batches with explicit IDs.
-- LLM output should be requested in a structured JSON-like format to map translations back to blocks.
+- `LocalizationEngine` implementation (mock):
+  - Correct stage sequencing (OCR → translation → inpainting).
+  - Correct status transitions (`queued` → `processing` → `completed` / `failed`).
+  - Reasonable mock timings.
+- Job repository abstraction:
+  - Create/read/update semantics.
+  - Handling of unknown IDs.
+- Request/response validation:
+  - Required fields.
+  - File type/size checks.
+  - Error codes for invalid requests.
 
-### 10.4 Prompts
+**Style**
 
-- Prompt templates and rules will be defined separately.
-- Implementers must ensure different prompts for body/tagline vs credits, with clear instructions for name preservation and format.
+- Pure unit tests should **not** spin up the FastAPI app.
+- They should directly exercise Python classes/functions with in-memory data.
+
+### 12.3 Integration Tests
+
+Integration tests will:
+
+- Use FastAPI’s `TestClient` to run requests against the actual app.
+- Exercise:
+  - `POST /v1/localization-jobs` end-to-end with a small sample image (fixture).
+  - `GET /v1/localization-jobs/{jobId}` polling until job reaches a terminal state.
+  - `GET /health` response shape.
+- Use the mock engine (no external calls).
+
+Because we simulate async background work, integration tests may:
+
+- Use shorter mock delays in a special `TEST` mode.
+- Or bypass delays entirely by injecting a “fast” mock engine in test configuration.
+
+### 12.4 Manual Test Scenarios
+
+For demo readiness, we will maintain a small set of **manual test scenarios**:
+
+- Process each curated poster (e.g., `minecraft`, `the-batman`, `jackass`).
+- Verify:
+  - End-to-end job creation and completion.
+  - Reasonable stage timings.
+  - Correct error handling for:
+    - Oversized files.
+    - Unsupported formats.
+    - Invalid `jobId`.
+
+These scenarios can be documented in a separate `artifacts/test/ManualTestPlan.md` if desired (not mandatory for Sprint 2).
+
+### 12.5 CI Integration (Future)
+
+In a future enhancement (outside strict Sprint 2 scope), we can:
+
+- Add a simple CI workflow (GitHub Actions) that:
+  - Installs dependencies.
+  - Runs `pytest`.
+  - Fails on non-zero exit code.
+- Optionally enforces:
+  - Basic formatting checks (`black`, `ruff`) on the backend code.
 
 ---
 
-## 11. Testing and Quality
+## 13. Future Extensions (Beyond Sprint 2)
 
-### 11.1 Unit Tests
+These items are explicitly **out of scope** for Sprint 2 but are anticipated next steps if the PoC is successful.
 
-- At minimum, unit tests for text role classification heuristics, bounding box scaling/layout calculations, and prompt-building logic.
+### 13.1 Live Localization Pipeline (Sprint 3)
 
-### 11.2 Integration and Smoke Tests
+- Implement `LiveLocalizationEngine` behind the same interface:
+  - Google Vision (or equivalent) for OCR and bounding boxes.
+  - Claude (or similar) for translation and cinematic/localized rewrites.
+  - Replicate (or similar) for image inpainting.
+- Toggle via `LOCALIZATION_MODE=mock|live`.
+- Preserve all Sprint 2 API contracts and payload shapes.
 
-- A simple pipeline smoke test using mocked OCR/translation/inpainting clients to ensure pipeline produces a non-empty localized image and no unhandled exceptions for a basic test poster.
+### 13.2 PSD-Aware Workflows
 
-### 11.3 Manual QA Checklist
+- Accept layered PSD input instead of (or in addition to) flat images.
+- Parse PSD layer metadata (names, groups, tags) to infer:
+  - Titles, taglines, credits, legal text, logos.
+- Use PSD coordinates and layer attributes to generate richer templates (e.g., multiple `MAIN_TITLE` segments, per-layer opacity).
 
-For each curated demo poster:
+### 13.3 Template & Review UI (Marketing Localization Lead)
 
-- Verify localization works in all four languages.
-- Verify credits names remain unchanged.
-- Verify localized PNG downloads and opens correctly.
-- Verify UI does not hang; progress messages appear while processing.
+- Build a dedicated UI for the **Marketing Localization Lead** to:
+  - Review AI-detected text regions.
+  - Confirm object types (title, tagline, credit block, legal, logo, etc.).
+  - Mark objects as locked / localizable / FPO (placeholder).
+  - Adjust bounding boxes and constraints (e.g., “can grow left/right”).
+- Persist approved templates for reuse across multiple locales.
+
+### 13.4 MPA Compliance Assistance
+
+- Encode key MPAA/MPA marketing rules as a machine-readable checklist.
+- Provide an “MPA pre-flight” scan that:
+  - Checks presence/position of rating boxes and required legal lines.
+  - Highlights possible compliance issues for human review.
+
+### 13.5 Analytics & Insights
+
+- Track aggregate statistics:
+  - Jobs per title / per locale.
+  - Average automated coverage (% of text auto-localized vs FPO).
+  - Time saved compared to manual baselines (if data is available).
+- Provide simple dashboards or export hooks to studio BI tools.
+
+### 13.6 Hardening for Production Use
+
+If the PoC evolves into a production system:
+
+- Add authentication and authorization:
+  - SSO/JWT, integration with studio identity provider.
+- Implement role-based access control:
+  - Marketing, Engineering, Vendors, Admins.
+- Add rate limiting and abuse protection for public endpoints.
+- Replace in-memory storage with a persistent database (e.g., PostgreSQL).
+- Introduce real observability:
+  - Structured logging.
+  - Metrics (e.g., Prometheus).
+  - Tracing (e.g., OpenTelemetry).
 
 ---
 
-## 12. Logging and Observability (PoC Level)
-
-- Backend should log request start/end for /api/translate-poster, key pipeline step transitions, and errors with sufficient context but without sensitive data.
-- No full observability stack is required for the PoC, but logs should make it easy to debug failures.
-- In addition to writing basic logs, the backend records simple per-step timing metrics for each call to `/api/translate-poster`. These timings are returned to the caller in the `timings` object (see Section 6.1) so that demo users and technical reviewers can understand where time is being spent in the pipeline. No persistent metrics store is required for this PoC; in a production environment, these timings could be exported to a monitoring system for aggregation and alerting.
-
----
-
-## 13. Future Expansion (Beyond PoC)
-
-Not implemented in v1, but the architecture should allow:
-
-- Layered PSD input instead of flat PNG/JPG, eliminating the need for inpainting.
-- More advanced typographic effects (arcs, perspective text).
-- Per-title style configuration from the studio’s design teams.
-- Batch processing and job queue management for multiple posters.
-- Real progress reporting via asynchronous jobs and job status endpoints.
-- Integration into internal studio asset-management pipelines.
-
----
-
-## 14. Risks and Limitations
-
-- OCR accuracy may be imperfect on stylized or low-contrast text.
-- Inpainting artifacts may be noticeable in complex backgrounds.
-- Font/style approximations may not meet final theatrical marketing standards without human polish.
-- LLM translation may occasionally produce inappropriate or off-tone phrases; human review remains required.
-
----
-
-## 15. Implementation Notes for AI Assistants
-
-- Treat this document as authoritative for design and behavior.
-- Do not invent new endpoints, major features, or architectural patterns without explicit instruction.
-- Favor clear, modular code that reflects the pipeline and client abstractions described here.
-- Keep configuration and secrets externalized (environment variables), not hard-coded.
-- Use this spec together with Coding Standards and Sprint Plan artifacts as the combined source of truth.
+_End of Functional & Technical Specification (Sprint 2 scope)._

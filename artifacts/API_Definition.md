@@ -1,7 +1,15 @@
 # Media Promo Localizer – API Contract (Async Job Model)
 
-Version: 0.1  
-Status: Draft (MVP PoC)
+Version: **0.2**  
+Status: Draft (MVP PoC, aligned with FuncTechSpec Sprint 2)
+
+This document supersedes version 0.1. The main changes are:
+
+- Explicit `GET /health` endpoint.
+- Clarified error envelope and status codes.
+- `detectedText.boundingBox` normalized to image size (fractions 0–1).
+
+---
 
 ## 1. Overview
 
@@ -25,7 +33,13 @@ All endpoints are versioned under:
 
 ## 2. Endpoint Summary
 
-### 2.1 Create Localization Job
+- `POST /v1/localization-jobs` – Create a new localization job.
+- `GET /v1/localization-jobs/{jobId}` – Poll job status / retrieve result.
+- `GET /health` – Basic liveness probe.
+
+---
+
+## 3. Create Localization Job
 
 **POST** `/v1/localization-jobs`
 
@@ -34,12 +48,12 @@ Creates a new localization job for a single poster image.
 - **Auth**: None for MVP (demo only).
 - **Content-Type**: `multipart/form-data`
 
-#### Request Fields
+### 3.1 Request Fields
 
 - `file` (required)
   - Type: `file` (binary)
   - Description: Poster image to localize.
-  - Supported formats: `image/jpeg`, `image/png` (more can be added later).
+  - Supported formats: `image/jpeg`, `image/png`.
 
 - `targetLanguage` (required)
   - Type: `string`
@@ -53,7 +67,7 @@ Creates a new localization job for a single poster image.
   - Type: `string` (JSON-encoded object)
   - Description: Optional metadata for client tracking (e.g. user ID, campaign, asset ID). Opaque to the backend.
 
-#### Example Request (conceptual)
+### 3.2 Example Request (conceptual)
 
 ```http
 POST /v1/localization-jobs HTTP/1.1
@@ -71,7 +85,7 @@ Content-Type: image/jpeg
 ---XYZ--
 ```
 
-#### Response – 202 Accepted
+### 3.3 Response – 202 Accepted
 
 ```json
 {
@@ -91,18 +105,22 @@ Fields:
 - `createdAt` (ISO 8601 string): Server-side creation timestamp.
 - `estimatedSeconds` (number, optional): Rough guess for UX only. May be `null` or omitted.
 
-#### Error Responses
+### 3.4 Error Responses
 
 - **400 Bad Request**
-  - Missing file or targetLanguage, unsupported language format, invalid metadata JSON.
+  - Missing `file` or `targetLanguage`, unsupported language format, invalid `jobMetadata` JSON.
 - **415 Unsupported Media Type**
   - File is not a supported image type.
+- **413 Payload Too Large**
+  - File exceeds configured maximum size.
 - **500 Internal Server Error**
   - Unexpected backend failure.
 
+All error responses MUST follow the standard error envelope (see §9).
+
 ---
 
-### 2.2 Get Localization Job Status / Result
+## 4. Get Localization Job Status / Result
 
 **GET** `/v1/localization-jobs/{jobId}`
 
@@ -111,11 +129,11 @@ Returns the current status of a localization job, and the result when complete.
 - **Auth**: None for MVP.
 - **Content-Type**: `application/json`
 
-#### Path Parameters
+### 4.1 Path Parameters
 
 - `jobId` (required): ID returned from the create endpoint.
 
-#### Response – 200 OK (General Shape)
+### 4.2 Response – 200 OK (General Shape)
 
 ```json
 {
@@ -138,7 +156,7 @@ Returns the current status of a localization job, and the result when complete.
 }
 ```
 
-#### Status Values
+### 4.3 Status Values
 
 - `queued` – Job accepted but not yet started.
 - `processing` – Job actively running (any stage).
@@ -146,7 +164,7 @@ Returns the current status of a localization job, and the result when complete.
 - `failed` – Job failed; `error` is populated and `result` is `null`.
 - `canceled` – Reserved for future use (not used in MVP).
 
-#### Progress Object
+### 4.4 Progress Object
 
 Optional but recommended for UX:
 
@@ -175,9 +193,7 @@ Fields:
 
 For early MVP, `progress` may be coarse-grained (e.g. bump from 10 → 50 → 90 → 100).
 
----
-
-### 2.3 Successful Result Shape (`status = "succeeded"`)
+### 4.5 Successful Result Shape (`status = "succeeded"`)
 
 When `status` is `succeeded`, the `result` field is populated:
 
@@ -196,12 +212,12 @@ When `status` is `succeeded`, the `result` field is populated:
   "detectedText": [
     {
       "text": "THE GREAT HEIST",
-      "boundingBox": [100, 200, 800, 280],
+      "boundingBox": [0.10, 0.20, 0.80, 0.28],
       "role": "title"
     },
     {
       "text": "COMING SOON",
-      "boundingBox": [120, 900, 780, 950],
+      "boundingBox": [0.12, 0.90, 0.78, 0.95],
       "role": "tagline"
     }
   ]
@@ -220,14 +236,14 @@ Fields:
   - Per-text-element info (optional for MVP, but valuable later).
   - Each entry:
     - `text` (string): The original or translated text segment.
-    - `boundingBox` (array of 4 numbers): `[x1, y1, x2, y2]` in pixel coordinates relative to original image.
+    - `boundingBox` (array of 4 numbers): **Normalized coordinates** `[x1, y1, x2, y2]`  
+      where each value is in the range `0.0–1.0` relative to the original image width/height.  
+      This makes the boxes resolution-independent.
     - `role` (string): Soft classification (e.g. `title`, `tagline`, `credits`, `rating`, `other`).
 
 For **MVP**, `detectedText` may be stubbed or simplified, but the shape should be respected so the frontend and analytics can rely on it later.
 
----
-
-### 2.4 Failed Result Shape (`status = "failed"`)
+### 4.6 Failed Result Shape (`status = "failed"`)
 
 When `status` is `failed`, `error` is populated and `result` is `null`:
 
@@ -258,14 +274,45 @@ Fields:
 - `message` (string, required): Human-readable explanation.
 - `retryable` (boolean, required): Indicates whether a re-submit might succeed.
 
-#### Error HTTP Statuses
+### 4.7 Error HTTP Statuses
 
 - **404 Not Found** – Unknown `jobId`.
 - **500 Internal Server Error** – Unhandled exceptions.
 
+All error responses MUST use the standard error envelope (see §9).
+
 ---
 
-## 3. Polling Recommendations (Frontend)
+## 5. Health Check
+
+**GET** `/health`
+
+Basic liveness endpoint for local development and PoC deployments.
+
+- **Auth**: None.
+- **Content-Type**: `application/json`
+
+### 5.1 Response – 200 OK
+
+```json
+{
+  "status": "ok",
+  "uptimeSeconds": 1234,
+  "version": "0.2.0"
+}
+```
+
+Fields:
+
+- `status` (string): `"ok"` when the service is responding.
+- `uptimeSeconds` (number): Server uptime (best-effort).
+- `version` (string): Backend version string.
+
+No error envelope is required here; a failed health check is indicated by a non‑200 HTTP status (e.g., 500 or timeout).
+
+---
+
+## 6. Polling Recommendations (Frontend)
 
 The frontend should:
 
@@ -274,7 +321,7 @@ The frontend should:
    - Navigate to a “Processing” view for that job.
    - Start polling `GET /v1/localization-jobs/{jobId}`.
 
-### Suggested Polling Strategy
+### 6.1 Suggested Polling Strategy
 
 - Poll interval: **1–2 seconds** for demo (can be tuned later).
 - Timeout: e.g. **60 seconds** before giving up and showing a failure message.
@@ -287,18 +334,44 @@ For MVP, simple polling is sufficient; webhooks or SSE can be considered later.
 
 ---
 
-## 4. HTTP Status Codes Summary
+## 7. HTTP Status Codes Summary
 
 - **202 Accepted** – Job created successfully.
-- **200 OK** – Job status/result retrieved successfully.
+- **200 OK** – Job status/result retrieved successfully; health OK.
 - **400 Bad Request** – Invalid parameters, missing file, invalid metadata JSON.
 - **404 Not Found** – Unknown `jobId`.
+- **413 Payload Too Large** – File exceeds configured maximum size.
 - **415 Unsupported Media Type** – File is not a supported image format.
 - **500 Internal Server Error** – Unexpected backend failure.
 
 ---
 
-## 5. Vendor Abstraction (Internal Notes)
+## 8. Standard Error Envelope
+
+For invalid input or unexpected failures at the HTTP layer (e.g., validation errors, unsupported media), endpoints MUST return a JSON body of the form:
+
+```json
+{
+  "error": {
+    "code": "INVALID_INPUT",
+    "message": "Target language is required."
+  }
+}
+```
+
+- The `code` field SHOULD be one of the standard error codes in §4.6 where applicable.
+- The `message` field SHOULD be safe to show to end users (no stack traces).
+
+This envelope applies to:
+
+- `POST /v1/localization-jobs` (4xx/5xx)
+- `GET /v1/localization-jobs/{jobId}` (4xx/5xx)
+
+`GET /health` may omit the envelope and simply use non‑200 status codes for failure.
+
+---
+
+## 9. Vendor Abstraction (Internal Notes)
 
 This contract is **vendor-agnostic**:
 
@@ -312,7 +385,7 @@ Frontends and executives **must never see vendor-specific codes or payloads**.
 
 ---
 
-## 6. Future Extensions (Out of Scope for MVP, Reserved)
+## 10. Future Extensions (Out of Scope for MVP, Reserved)
 
 These are NOT required for the MVP but reserved for future versions:
 
@@ -329,7 +402,9 @@ These are NOT required for the MVP but reserved for future versions:
 - **Rich asset bundles**
   - Multiple output renditions, layered PSD export, etc.
 
-## 7. Implementation Modes (Mock vs Live)
+---
+
+## 11. Implementation Modes (Mock vs Live)
 
 The API contract above is fixed and MUST be respected by all implementations.
 
