@@ -1,30 +1,33 @@
 # Development Plan – Media Promo Localizer
 
-**Location:** `artifacts/DevPlan.md`  
-**Audience:** Human developers and AI coding assistants (e.g., Claude, ChatGPT)
+**Location:** `artifacts/DevPlan.md`
+**Audience:** Human developers and AI coding assistants (e.g., Cursor, Claude, ChatGPT)
 
 This document defines the **high-level development plan** for the Media Promo Localizer PoC, broken into small, concrete milestones (“sprints”) that can be executed largely by an AI assistant with human review.
 
 It complements:
 
-- `artifacts/FuncTechSpec.md` – behavioral specification
-- `artifacts/CodingStandards.md` – code style and structure
-- `artifacts/DevProcess.md` – collaboration and workflow rules
+- `artifacts/spec/FuncTechSpec.md` – functional & technical specification (authoritative behavior and architecture)
+- `artifacts/spec/API_Definition.md` – backend HTTP API contract (authoritative endpoints & payloads)
+- `artifacts/DevChecklist_Sprint2.md` – detailed Sprint 2 backend checklist
+- `artifacts/DevProgress.md` – running progress log and journal
+- `artifacts/CodingStandards.md` – code style and structure (if present)
+- `artifacts/DevProcess.md` – collaboration and workflow rules (if present)
 
-The goal is to give Claude clear objectives and a checklist so it can work in **batches** with minimal micro-management.
+The goal is to give AI coding assistants clear objectives and a stable roadmap, so they can work in **batches** with minimal micro-management and without drifting from the spec.
 
 ---
 
 ## 0. Milestone Overview
 
-We’ll use small, incremental milestones:
+We are structuring the work into small, incremental sprints:
 
-- **Sprint 0 (done):** Repo bootstrap and control artifacts
-- **Sprint 1:** Frontend shell + fake backend contract
-- **Sprint 2:** Backend API service + end-to-end with stubbed pipeline
-- **Sprint 3:** First real pipeline path (OCR + translation + inpainting, narrow scope)
+- **Sprint 0 (done):** Repo bootstrap, core artifacts, and process scaffolding
+- **Sprint 1 (done):** Cinematic frontend shell with stubbed “localize poster” UX
+- **Sprint 2 (current):** FastAPI backend service (`apps/api`) with async job model and mock localization pipeline
+- **Sprint 3 (planned):** First live pipeline path (OCR + translation + inpainting) behind the same contract
 
-The PoC is considered “demo-ready” once Sprints 1 and 2 are complete and stable. Sprint 3 is stretch / enhancement for extra impressiveness.
+The PoC is considered **demo-ready** once Sprints 1 and 2 are complete and stable. Sprint 3 is a stretch goal that adds real AI magic on a constrained subset of posters.
 
 ---
 
@@ -34,186 +37,325 @@ The PoC is considered “demo-ready” once Sprints 1 and 2 are complete and sta
 
 **Key outcomes:**
 
-- Repo `media-promo-localizer` created from the template.
-- Husky + Conventional Commits confirmed working.
-- `artifacts/FuncTechSpec.md` added and reviewed.
-- `artifacts/CodingStandards.md` added and reviewed.
-- `artifacts/DevProcess.md` added and reviewed.
-- This `artifacts/DevPlan.md` and `artifacts/DevProgress.md` established as process artifacts.
+- Repo `media-promo-localizer` created and initialized.
+- Base project layout established:
+  - `apps/web/` – React/Vite frontend
+  - `apps/api/` – FastAPI backend (to be built in Sprint 2)
+  - `artifacts/` – specs, dev plan, checklists, and process docs
+- Core artifacts added and reviewed:
+  - `artifacts/spec/FuncTechSpec.md`
+  - `artifacts/spec/API_Definition.md` (initial version)
+  - `artifacts/DevPlan.md` (this document)
+  - `artifacts/DevProgress.md`
+  - `artifacts/CodingStandards.md` and `artifacts/DevProcess.md` (if present)
+- Basic tooling and conventions established (e.g., package scripts, lint/test commands).
 
-**Status:** Done. No further AI work needed for this sprint unless docs change.
+**Status:** Done. No further AI work needed for this sprint unless these docs change.
 
 ---
 
-## 2. Sprint 1 – Frontend Shell + Fake/Stub Backend Contract
+## 2. Sprint 1 – Frontend Shell + Stubbed Localization UX (Completed)
 
-**Goal:** A working web UI that feels like a real app, wired to a **fake** translate-poster API, ready for demo with static or stub data.
+**Goal:** A working web UI in `apps/web/` that feels like a real app, wired to a **fake** localization response, suitable for early demos and UX validation.
 
 ### 2.1 Objectives
 
-- Implement a simple **Login page**:
-  - Email + password fields (no real auth; any values are accepted).
-  - On “login”, set a basic in-memory “logged in” flag and navigate to the main app.
-- Implement **Poster Localizer page**:
-  - Upload control for a poster image (client-side only at this stage).
-  - Language dropdown with options: `French, Spanish, German, Japanese, Korean`.
-  - “Localize Poster” button.
+The Sprint 1 frontend now exists and should generally align with the FuncTechSpec:
+
+- **Login / access gate**
+  - Simple stub login form (email + password or equivalent).
+  - No real authentication; any values are accepted.
+  - On “login”, the app routes to the main poster localization experience.
+
+- **Poster Localizer experience**
+  - Dark, cinematic UI with glassmorphism and subtle transitions.
+  - Upload control for a poster image (client-side handling).
+  - BCP-47-style language selector (e.g., `es-MX`, `fr-FR`, `pt-BR`, `ja-JP`).
+  - “Localize Poster” or equivalent CTA button.
   - Processing UX:
-    - Animated indicator (spinner or progress bar).
-    - Stage messages (e.g., “Analyzing text…”, “Translating…”, “Rendering localized poster…”).
-- Define and implement **frontend types** for `POST /api/translate-poster` request/response matching the spec, including `timings` structure.
-- Implement an **API client hook/module** that currently calls a **fake endpoint** or returns **hard-coded stubbed data**.
-- Display a **sample localized poster image** in the UI (placeholder image from `/public` or similar) and show `timings` in a small “Performance details” panel.
-- Add smoke tests for:
-  - Login page renders and navigates.
-  - Poster Localizer page renders core elements (upload, language select, button).
-  - When “Localize” is clicked and the fake API resolves, the localized image + performance panel are shown.
+    - Animated processing state (spinner or progress bar).
+    - Stage messages hinting at the pipeline (OCR / translation / inpainting).
+  - Result view:
+    - Before/after poster display (may be using placeholder images).
+    - Timing breakdown per stage (stubbed or fake data).
+    - Simple error state for failures.
 
-### 2.2 Suggested Claude Tasks
+- **Stub API integration**
+  - Frontend code currently calls a fake or stubbed localization API (e.g. via a hook/module).
+  - The shapes of the response are aligned conceptually with the final API, but actual HTTP calls may still be mocked or local.
 
-You can give Claude a single batch task like:
+- **Smoke tests**
+  - Rendering of login page and navigation into the main app.
+  - Core components of the poster localization page (upload, language, button).
+  - UI behavior when the stubbed localization “completes”.
 
-> Implement Sprint 1 for the `media-promo-localizer` repo: login flow, Poster Localizer page with stubbed translate API, and basic tests, following FuncTechSpec, CodingStandards, DevProcess, and DevPlan in `artifacts/`. Operate in IMPLEMENTATION_MODE.
+### 2.2 Definition of Done (Sprint 1)
 
-Internally, Claude should:
+- Frontend builds and runs locally (e.g., via Vite dev server).
+- You can:
+  - “Log in”
+  - Upload a poster
+  - Choose a target language
+  - Click localize and see:
+    - A processing state
+    - A “localized result” view backed by stubbed behavior
+- UI feels cinematic and demo-worthy.
+- No backend dependency; localization behavior is still mocked on the frontend.
 
-1. **Plan & list files to touch** under `apps/web/src` (pages, components, hooks, tests).
-2. Implement Login + routing.
-3. Implement Poster Localizer page UI, state, and processing UX.
-4. Implement a stub `useTranslatePoster` or similar API hook returning fake data.
-5. Add minimal tests.
-6. Update `README` if needed to mention the main user flow.
-7. Summarize files changed and how to run the app/tests.
-
-### 2.3 Definition of Done
-
-- `pnpm build` and `pnpm test` succeed.
-- Login → main screen flow works in browser via `pnpm dev`.
-- Selecting a sample image and language triggers a visible processing state and a final “localized result” view using stub data.
-- Code adheres to Coding Standards (TS types, components, file naming).
+**Status:** Done. Sprint 1 should **not** be modified during Sprint 2 except for necessary wiring to the real backend API once it exists.
 
 ---
 
-## 3. Sprint 2 – Backend API + End-to-End with Stubbed Pipeline
+## 3. Sprint 2 – Backend API + Async Mock Pipeline (Current)
 
-**Goal:** Introduce a real backend service (e.g., FastAPI on Railway) that the frontend calls for `/api/translate-poster`, still using a stubbed pipeline that doesn’t yet invoke real OCR/translation/inpainting.
+**Goal:** Introduce a real backend service in `apps/api/` using FastAPI that implements the **authoritative async job API** described in `API_Definition.md`, with a **mock localization pipeline**, and wire the existing frontend to it.
 
-### 3.1 Objectives
+This sprint is all about giving the app a **real spine**: actual HTTP endpoints, background jobs, progress, and timing data — even though the “localization” is still fake.
 
-- Create a backend Python service with:
-  - FastAPI app entrypoint (e.g., `main.py`).
-  - `GET /health` endpoint returning a simple JSON `{ "status": "ok" }`.
-  - `POST /api/translate-poster` endpoint with:
-    - Multipart image upload.
-    - JSON fields for `source_language` and `target_language` (or just `target_language` if inferring source).
-    - Response JSON matching the FuncTechSpec, including `localized_image_url` (or base64 image) and `timings` structure.
-- Implement a **stub pipeline**:
-  - No real OCR/translation/inpainting yet.
-  - For now, return the original image or a placeholder localized image plus mock timings (e.g., ~300–500ms per step).
-- Add basic backend tests (pytest):
-  - `/health` returns 200 + expected JSON shape.
-  - `/api/translate-poster` accepts a valid request and returns expected response fields.
-- Wire the frontend to call the **real backend endpoint** instead of stubbed client-side fake:
-  - Move API URL to env config (e.g., `VITE_API_BASE_URL` for frontend).
-  - Handle failure cases in the UI (show friendly error messages).
-- Prepare simple Railway deployment config for the backend (Dockerfile or Procfile-style as appropriate for the chosen stack).
+### 3.1 Backend Objectives
 
-### 3.2 Suggested Claude Tasks
+Implement the following in `apps/api/`:
 
-Likely two batches:
+- **FastAPI app skeleton**
+  - A FastAPI application with a clean package layout (e.g., `app/main.py`, `app/models.py`, `app/services/…`).
+  - Startup time recorded for uptime reporting.
+  - Configurable via environment variables (see FuncTechSpec).
 
-1. **Backend batch (IMPLEMENTATION_MODE)**
-   - Create backend package structure (`poster_localizer/api`, `poster_localizer/pipeline`, `poster_localizer/models`, etc.).
-   - Implement endpoints + stub pipeline.
-   - Add tests and a simple `README` section for running backend locally.
+- **Endpoints (as per API_Definition v0.2)**
+  - `GET /health`
+    - Returns basic liveness JSON with status, uptimeSeconds, and version.
+  - `POST /v1/localization-jobs`
+    - Accepts `multipart/form-data`:
+      - `file` (JPEG/PNG poster)
+      - `targetLanguage` (BCP-47)
+      - Optional `sourceLanguage`, `jobMetadata`
+    - Validates inputs, enforces size and MIME limits.
+    - Creates a new **localization job** and returns `202 Accepted` with job metadata.
+  - `GET /v1/localization-jobs/{jobId}`
+    - Returns job status, progress, and, when complete, the mock result payload.
 
-2. **Frontend integration batch (IMPLEMENTATION_MODE)**
-   - Update API client to call Railway/localhost backend.
-   - Ensure env-var-based configuration for API URL.
-   - Refine error and loading states based on real network behavior.
+- **Async job model**
+  - In-memory job store keyed by `jobId`.
+  - Job statuses: `queued`, `processing`, `succeeded`, `failed` (plus `canceled` reserved for future).
+  - Background task or worker that:
+    - Transitions a job through `queued → processing → succeeded/failed`.
+    - Simulates pipeline stages (OCR, translation, inpaint, packaging).
+    - Updates `progress.stage`, `progress.percent`, and `stageTimingsMs`.
 
-### 3.3 Definition of Done
+- **Mock localization pipeline**
+  - No external providers yet; no real OCR/translation/inpainting.
+  - A `LocalizationEngine` or pipeline interface (e.g., `LocalizationPipeline` or `LocalizationEngine`) with at least a mock implementation.
+  - Simulates realistic timing:
+    - Millisecond timings per stage.
+    - Total processing time calculation.
+  - Returns:
+    - A “localized” image URL that can be:
+      - The original image
+      - A static placeholder
+      - A trivial server-side derivation
+    - Optional `thumbnailUrl` if convenient.
+    - A small `detectedText` array with normalized bounding boxes in `[0.0, 1.0]` coordinate space, even if stubbed.
+
+- **Error handling and logging**
+  - Standard error envelope with:
+    - `error.code` (e.g., `INVALID_INPUT`, `NOT_FOUND`, `UNSUPPORTED_MEDIA_TYPE`, `INTERNAL_ERROR`).
+    - `error.message` (end-user safe, no stack traces).
+  - 400/404/413/415/500 mapped appropriately.
+  - Basic logging for:
+    - Job creation
+    - Job progression/completion
+    - Errors and exceptions
+  - Support a DEBUG toggle via environment variable for more verbose logs.
+
+- **Tests (pytest)**
+  - Happy-path health check.
+  - Happy-path job creation and polling.
+  - Error cases: unknown jobId, missing fields, bad media type, oversized file.
+  - All runnable from repo root via `pytest` or equivalent command.
+
+Detailed tasks, file paths, and interface expectations for Sprint 2 are captured in:
+
+- `artifacts/DevChecklist_Sprint2.md`
+
+AI assistants should treat that checklist as **the primary execution guide** for Sprint 2, checking off items as they are completed.
+
+### 3.2 Frontend Integration Objectives
+
+Once the backend is up and stable:
+
+- Update the existing frontend API client (in `apps/web/`) to call:
+  - `POST /v1/localization-jobs` for job creation.
+  - `GET /v1/localization-jobs/{jobId}` for polling.
+- Use environment-based configuration for the backend base URL (e.g., `VITE_API_BASE_URL`).
+- Wire the existing “processing” UI to:
+  - Interpret `status` (`queued`, `processing`, `succeeded`, `failed`).
+  - Display progress percentage and stage labels when present.
+  - Show timing breakdown from `result.processingTimeMs`.
+- Show friendly error messaging when the backend returns an error envelope or is unreachable.
+
+The frontend **look and feel** should not be heavily modified in Sprint 2; the focus is on wiring it to the real API.
+
+### 3.3 Definition of Done (Sprint 2)
 
 - Backend:
-  - Can run locally (e.g., `uvicorn main:app --reload`).
-  - Tests pass via `pytest` (or configured test command).
+  - FastAPI app runs locally (e.g., via Uvicorn).
+  - All Sprint 2 checklist items that are in scope are ticked.
+  - Tests pass.
+  - API behavior matches `API_Definition.md` v0.2 exactly (field names, status codes, shapes).
 - Frontend:
-  - Calls real `/api/translate-poster` endpoint.
-  - Shows errors gracefully when backend is unavailable or returns 4xx/5xx.
+  - Uses the real backend API for job creation and polling.
+  - Shows progress and timing data from real backend responses.
+  - Handles errors gracefully.
 - End-to-end demo:
-  - You can run backend locally + frontend locally.
-  - Upload a poster and see a localized result from the real backend stub.
+  - You can:
+    - Start backend.
+    - Start frontend.
+    - Log in, upload a poster, choose a language, and see:
+      - A real async job flow.
+      - Mock but plausible progress and timing.
+      - A “localized” image URL returned by the backend.
 
 ---
 
-## 4. Sprint 3 – First Real Pipeline Path (Narrow but Real)
+## 4. Sprint 3 – First Real Pipeline Path (Planned)
 
-**Goal:** Replace the stub pipeline with a **minimal, working pipeline** on a constrained subset of posters (horizontal English text only), so execs see genuine OCR/translation/inpainting in action.
+**Goal:** Replace the mock localization engine with a **real AI-driven pipeline** on a constrained subset of posters, while preserving the same API contract and frontend behavior.
 
-### 4.1 Objectives
+This sprint is not required to get to an impressive demo, but it turns the system from a “fake but convincing spine” into a **genuinely intelligent** tool.
 
-- Implement **OCR integration** for English-language text:
-  - Pick one provider (cloud OCR or open-source) and implement it behind `IOcrClient`.
-  - Extract detected text, positions, and approximate font/style hints if available.
-- Implement **LLM-based translation**:
-  - Integrate OpenAI or another LLM provider via `ITranslationClient`.
-  - Send an array of text blocks + role tags (title, tagline, credits, etc.) in a single call where possible.
-  - Ensure rules for not translating proper names (credits) are applied based on role tags.
-- Implement **inpainting** for text regions:
-  - Integrate LaMa or similar as `IInpaintingClient`.
-  - For v0.1, inpaint the bounding boxes of original text to reconstruct background before placing translated text.
-- Implement **text rendering**:
-  - Use font approximation logic (per spec) to pick reasonable fonts for target languages.
-  - For now, limit to horizontal text and visually similar fonts; no arcs or vertical stacks.
-- Update timings:
-  - Measure OCR, translation, inpainting, and rendering durations and return in `timings` as real values.
-- Add tests for:
-  - Role classification logic for text blocks.
-  - Prompt building for translation client.
-  - Pipeline behavior with mocked clients (happy path).
+### 4.1 Objectives (Conceptual)
 
-### 4.2 Suggested Claude Tasks
+- **Provider integrations**
+  - Implement provider-agnostic clients behind interfaces such as:
+    - OCR client (e.g., Google Vision, Tesseract, or equivalent).
+    - Translation client (e.g., Claude, other LLM).
+    - Inpainting client (e.g., Replicate/SDXL, or other image model).
+  - All vendor-specific details must be hidden behind the pipeline interface and mapped into the unified `result` shape.
 
-This sprint is more complex; break into several IMPLEMENTATION_MODE tasks:
+- **Real pipeline orchestration**
+  - Orchestrate:
+    - OCR → localized copy suggestion → inpainting → text placement.
+  - Respect business rules from `FuncTechSpec.md` where feasible:
+    - Titles vs taglines vs credits.
+    - “Don’t translate” vs “localize creatively” fields.
+    - Basic role classification and credits handling.
 
-1. Add `IOcrClient` and one concrete implementation + tests.
-2. Add `ITranslationClient` + prompt builder + tests for mapping blocks.
-3. Add `IInpaintingClient` integration + tests with mocked image calls.
-4. Implement `PipelineContext` and main pipeline orchestrator, wiring all steps.
-5. Update the API endpoint to call the real pipeline instead of stub.
-6. Adjust frontend display to show richer timing info and any additional metadata if exposed.
+- **Performance and timing**
+  - Measure and return real timings for each stage.
+  - Ensure the UI can handle slightly longer processing times gracefully.
 
-### 4.3 Definition of Done
+- **Robust error handling**
+  - Map vendor failures to:
+    - `*_MODEL_ERROR`
+    - `*_MODEL_TIMEOUT`
+  - Keep error envelopes vendor-neutral.
 
-- Pipeline can process a small set of curated posters (horizontal English text) and produce visibly localized results for at least 2 languages (e.g., French, Spanish).
-- `timings` reflects real step durations.
-- Tests cover key pipeline logic and client interfaces.
+- **Tests and traceability**
+  - Mock provider responses for unit tests.
+  - Ensure the pipeline can be exercised and validated without calling real services in CI.
+
+### 4.2 Scope Constraints
+
+- Limit to relatively “simple” posters:
+  - Mostly horizontal English text.
+  - No curved titles or extreme typographic layouts.
+- No requirement yet to handle:
+  - PSD input
+  - Per-object template config
+  - Full marketing/localization workflow with roles and approvals
+
+Further sprints can expand into these areas once the basic live pipeline is proven.
 
 ---
 
-## 5. Using DevProgress.md
+## 5. Future Direction – Template Workflow & PSD-Aware Localization (Deferred)
 
-Alongside this DevPlan, maintain a **progress log** in `artifacts/DevProgress.md`.
+The FuncTechSpec (and our design discussions) outline a richer **template-based workflow** involving:
 
-- After each significant Claude batch or manual coding session:
-  - Append a new entry with date, sprint, mode, summary, files touched, tests run, and outcome.
-- Claude is allowed to append entries to `DevProgress.md` when instructed, but should never rewrite history.
+- A “Marketing Localization Lead” defining per-poster templates.
+- AI-assisted auto-tagging of text regions from flat images (and later PSD layers).
+- Human-editable JSON templates describing:
+  - Which regions are locked vs localizable.
+  - Expected roles, fonts, and alignment.
+  - FPO vs final content zones.
+- Multi-locale generation off a single template.
+
+These are powerful value-add features but are **explicitly out of scope** for the current PoC sprints. They may become:
+
+- Sprint 4+: Template editor UI and template persistence.
+- Sprint X: PSD input and PSD export with localized text layers.
+
+For now, the DevPlan treats these as **future opportunities**, not current objectives.
+
+---
+
+## 6. Using DevProgress.md
+
+Alongside this DevPlan, we maintain a **progress log** in `artifacts/DevProgress.md`.
+
+Guidelines:
+
+- After each significant AI or manual coding session:
+  - Append a new entry with:
+    - Date/time
+    - Sprint (0/1/2/3)
+    - Mode (e.g., “Cursor IMPLEMENTATION_MODE”, “Manual refactor”)
+    - Summary of work
+    - Key files touched
+    - Tests run and outcomes
+- AI assistants are allowed to append to `DevProgress.md` **only when explicitly instructed**, and must never rewrite or delete existing history.
 
 The combination of:
 
-- `DevPlan.md` (roadmap) and
+- `DevPlan.md` (roadmap)
+- `DevChecklist_Sprint2.md` (detailed Sprint 2 tasks)
 - `DevProgress.md` (journal)
 
-will help Claude avoid “forgetting where it is” and give human reviewers a fast way to see what’s been done.
+gives both humans and AIs a clear understanding of where we are and what comes next.
 
 ---
 
-## 6. Adjustments
+## 7. How AI Assistants Should Use This Plan
 
-This plan is intentionally lightweight. As we learn how Claude behaves on this repo, we can:
+When an AI assistant (Cursor, Claude, ChatGPT) is asked to work on this repo, it should:
 
-- Split sprints further if needed.
-- Move parts of Sprint 3 earlier or later.
-- Add new milestones (e.g., multi-poster batching, project-level queue, or PSD export).
+1. Read:
+   - `artifacts/spec/FuncTechSpec.md`
+   - `artifacts/spec/API_Definition.md`
+   - This `artifacts/DevPlan.md`
+   - Any relevant sprint checklist (e.g., `artifacts/DevChecklist_Sprint2.md`)
+2. Confirm which sprint and which subset of tasks it has been assigned.
+3. Propose or internally plan a small batch of file edits.
+4. Implement those edits, keeping changes localized and coherent.
+5. Run tests where applicable.
+6. Summarize:
+   - What was changed
+   - Which checklist items were completed
+   - Any follow-ups or questions
+7. (When instructed) Append an entry to `artifacts/DevProgress.md`.
 
-For now, these three sprints are sufficient to reach a powerful, **demo-ready PoC** that showcases real value to studio stakeholders.
+If the human asks for changes that contradict this plan or the spec files, the assistant should:
+
+- Call out the conflict explicitly.
+- Ask whether to:
+  - Update the plan/specs, or
+  - Adjust the requested work to stay in alignment.
+
+---
+
+## 8. Adjustments
+
+This plan is intentionally lightweight and may evolve as we learn:
+
+- If Sprint 2 proves larger than expected, we can:
+  - Defer some parts to 2.1 / 2.2 sub-sprints.
+- If Sprint 3 is too ambitious, we can:
+  - Narrow the scope (e.g., OCR + translation only, deferred inpainting).
+- If new business insights emerge from studio conversations, we can:
+  - Add new sprints or adjust goals to highlight the most impressive capabilities.
+
+For now, Sprints 1 and 2 are the **core path** to a compelling, demo-ready PoC:
+
+- A polished cinematic frontend.
+- A real backend with an async job model and mock pipeline.
+- A clean, extensible architecture ready to accept real AI providers in Sprint 3 and beyond.
