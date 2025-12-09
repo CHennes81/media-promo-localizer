@@ -21,15 +21,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger("media_promo_localizer")
 
-# Track startup time for uptime calculation
-_startup_time: float = time.time()
 
-
+@asynccontextmanager
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown."""
     logger.info("Starting Media Promo Localizer backend")
+
+    # record startup time on app.state so routers can read it
+    app.state.startup_time = datetime.now(timezone.utc)
+
     yield
+
     logger.info("Shutting down Media Promo Localizer backend")
 
 
@@ -73,12 +76,3 @@ async def general_exception_handler(request: Request, exc: Exception):
 # Include routers
 app.include_router(health.router)
 app.include_router(jobs.router, prefix="/v1")
-
-
-def get_uptime_seconds() -> float:
-    """Calculate uptime in seconds since startup."""
-    return time.time() - _startup_time
-
-
-# Make uptime function available to health router
-app.state.get_uptime_seconds = get_uptime_seconds

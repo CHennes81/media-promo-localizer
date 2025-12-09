@@ -2,20 +2,27 @@
 Health check endpoint.
 """
 import time
+from datetime import datetime, timezone
+from fastapi import APIRouter, Request
 
-from fastapi import APIRouter
-
-from app.main import _startup_time
-
-router = APIRouter()
+router = APIRouter(tags=["health"])
 
 
 @router.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    uptime_seconds = time.time() - _startup_time
+async def health(request: Request):
+    """
+    Basic liveness/uptime check.
+    """
+    startup_time = getattr(request.app.state, "startup_time", None)
+    now = datetime.now(timezone.utc)
+
+    if startup_time is None:
+        uptime_seconds = 0
+    else:
+        uptime_seconds = int((now - startup_time).total_seconds())
+
     return {
         "status": "ok",
-        "uptimeSeconds": int(uptime_seconds),
-        "version": "0.2.0",
+        "uptimeSeconds": uptime_seconds,
+        "version": "0.2.0",  # or settings.VERSION if you have that
     }

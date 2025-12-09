@@ -18,3 +18,12 @@ coverage/
 *.tmp
 *.swp
 *~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtualenv
+.venv/

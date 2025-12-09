@@ -147,18 +147,18 @@ Specs are authoritative:
 
 ## 8. Tests (pytest)
 
-- [ ] 8.1 Add `tests/` package for backend.
-- [ ] 8.2 Test `GET /health`:
+- [x] 8.1 Add `tests/` package for backend.
+- [x] 8.2 Test `GET /health`:
   - status 200
   - body contains `status: "ok"` and `uptimeSeconds`.
-- [ ] 8.3 Test `POST /v1/localization-jobs`:
+- [x] 8.3 Test `POST /v1/localization-jobs`:
   - valid image + targetLanguage → 202 + jobId.
   - missing `targetLanguage` → 400 with `error.code = "INVALID_INPUT"`.
   - bad mime type → 415 with `error.code = "UNSUPPORTED_MEDIA_TYPE"`.
-- [ ] 8.4 Test `GET /v1/localization-jobs/{jobId}`:
+- [x] 8.4 Test `GET /v1/localization-jobs/{jobId}`:
   - unknown jobId → 404 with `error.code = "NOT_FOUND"`.
   - existing job after mock completion → 200 with `status = "succeeded"` and non-null `result`.
-- [ ] 8.5 Ensure tests run via `pytest` from repo root and document the command in a comment or README.
+- [x] 8.5 Ensure tests run via `pytest` from repo root and document the command in a comment or README. [NOTE: Manual fix applied to main.py to avoid circular import on "_startup_time". Tests run manually via "pythos -m pytest" with local venv at project root.]
 
 ---
 
