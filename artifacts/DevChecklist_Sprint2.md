@@ -158,7 +158,7 @@ Specs are authoritative:
 - [x] 8.4 Test `GET /v1/localization-jobs/{jobId}`:
   - unknown jobId → 404 with `error.code = "NOT_FOUND"`.
   - existing job after mock completion → 200 with `status = "succeeded"` and non-null `result`.
-- [x] 8.5 Ensure tests run via `pytest` from repo root and document the command in a comment or README. [NOTE: Manual fix applied to main.py to avoid circular import on "_startup_time". Tests run manually via "pythos -m pytest" with local venv at project root.]
+- [x] 8.5 Ensure tests run via `pytest` from repo root and document the command in a comment or README. [NOTE: Tests run via `python -m pytest` from repo root with local venv activated. Lifespan startup error resolved by implementing proper `@asynccontextmanager` lifespan function that sets `app.state.startup_time` for uptime tracking. Uvicorn now starts successfully.]
 
 ---
 
@@ -168,3 +168,10 @@ Specs are authoritative:
 - [ ] 9.2 Sanity-check types, docstrings, and module organization.
 - [ ] 9.3 Confirm API responses still match `API_Definition.md` exactly.
 - [ ] 9.4 Add a brief note (e.g., in `README` or a comment in `FuncTechSpec.md`) that Sprint 2 backend is implemented with a **mock** pipeline only.
+
+---
+
+**Files modified by Sprint 2 backend runtime fix:**
+
+- `apps/API/app/main.py` - Added proper `@asynccontextmanager` lifespan function to set `app.state.startup_time` for uptime tracking, resolving Uvicorn startup TypeError
+- `artifacts/DevChecklist_Sprint2.md` - Updated section 8.5 to document the lifespan fix and confirm Uvicorn startup success

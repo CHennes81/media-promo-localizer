@@ -2,7 +2,7 @@
 FastAPI application entry point for Media Promo Localizer backend.
 """
 import logging
-#import time
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
@@ -20,10 +20,26 @@ logging.basicConfig(
 )
 logger = logging.getLogger("media_promo_localizer")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Lifespan context manager for FastAPI app.
+    Sets startup_time on app.state for uptime tracking.
+    """
+    # Startup: set the startup timestamp
+    app.state.startup_time = datetime.now(timezone.utc)
+    logger.info("Application startup complete")
+    yield
+    # Shutdown: cleanup if needed (currently none)
+    logger.info("Application shutdown")
+
+
 app = FastAPI(
     title="Media Promo Localizer API",
     description="Backend API for localizing promotional artwork",
     version="0.2.0",
+    lifespan=lifespan,
 )
 
 # CORS middleware for development
