@@ -273,3 +273,4 @@ async def get_localization_job(job_id: str):
             message="An unexpected error occurred while retrieving the job.",
             http_status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+

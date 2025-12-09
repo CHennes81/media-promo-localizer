@@ -59,3 +59,4 @@ def cleanup_uploads():
         for job_dir in uploads_dir.iterdir():
             if job_dir.is_dir():
                 shutil.rmtree(job_dir, ignore_errors=True)
+

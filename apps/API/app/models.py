@@ -127,3 +127,4 @@ class LocalizationJob(BaseModel):
             result=self.result,
             error=self.error,
         )
+

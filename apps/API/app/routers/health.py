@@ -26,3 +26,4 @@ async def health(request: Request):
         "uptimeSeconds": uptime_seconds,
         "version": "0.2.0",  # or settings.VERSION if you have that
     }
+

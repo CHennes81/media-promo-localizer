@@ -193,3 +193,4 @@ def _generate_mock_result(
         sourceLanguage=source_language,
         detectedText=detected_text,
     )
+
