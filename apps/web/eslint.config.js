@@ -19,5 +19,10 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Allow constants / types alongside components and make this a warning,
+      // so it never fails CI.
+      'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+    },
   },
 ]);
