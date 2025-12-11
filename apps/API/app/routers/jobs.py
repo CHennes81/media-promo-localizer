@@ -15,6 +15,7 @@ from app.config import settings
 from app.models import CreateJobResponse, JobStatus, LocalizationJob
 from app.services.job_store import get_job_store
 from app.services.mock_engine import run as run_mock_engine
+from app.services.live_engine import create_live_engine
 from app.utils.errors import APIError, ErrorCodes, create_error_response, handle_exception
 
 logger = logging.getLogger("media_promo_localizer")
@@ -110,6 +111,35 @@ async def _save_uploaded_file(file: UploadFile, job_id: str) -> tuple[str, int]:
         )
 
 
+def _get_localization_engine():
+    """
+    Get the appropriate localization engine based on configuration.
+
+    Returns:
+        Engine instance (LiveLocalizationEngine) or None for mock mode
+    """
+    if settings.LOCALIZATION_MODE == "live":
+        # Validate required config for live mode
+        if not settings.OCR_API_KEY:
+            raise ValueError(
+                "OCR_API_KEY is required when LOCALIZATION_MODE=live"
+            )
+        if not settings.OPENAI_API_KEY:
+            raise ValueError(
+                "OPENAI_API_KEY is required when LOCALIZATION_MODE=live"
+            )
+
+        return create_live_engine(
+            ocr_api_key=settings.OCR_API_KEY,
+            ocr_api_endpoint=settings.OCR_API_ENDPOINT,
+            openai_api_key=settings.OPENAI_API_KEY,
+            translation_model=settings.TRANSLATION_MODEL,
+        )
+    else:
+        # Default to mock engine
+        return None  # Will use run_mock_engine function directly
+
+
 async def _process_job_background(job: LocalizationJob) -> None:
     """
     Background task to process a localization job.
@@ -124,8 +154,13 @@ async def _process_job_background(job: LocalizationJob) -> None:
         job.updatedAt = datetime.now(timezone.utc)
         job_store.update_job(job)
 
-        # Run mock engine
-        updated_job = await run_mock_engine(job)
+        # Select engine based on mode
+        if settings.LOCALIZATION_MODE == "live":
+            engine = _get_localization_engine()
+            updated_job = await engine.run(job)
+        else:
+            # Use mock engine
+            updated_job = await run_mock_engine(job)
 
         # Update job store with final result
         job_store.update_job(updated_job)
@@ -273,4 +308,5 @@ async def get_localization_job(job_id: str):
             message="An unexpected error occurred while retrieving the job.",
             http_status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
+
 

@@ -2,7 +2,7 @@
 Configuration management for the Media Promo Localizer backend.
 """
 import os
-from typing import List
+from typing import List, Optional
 
 from pydantic_settings import BaseSettings
 
@@ -10,7 +10,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
-    # Localization mode: "mock" for Sprint 2
+    # Localization mode: "mock" (default) or "live"
     LOCALIZATION_MODE: str = os.getenv("LOCALIZATION_MODE", "mock")
 
     # File upload limits
@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     # Analysis settings (for future use)
     ANALYSIS_MAX_LONG_EDGE_PX: int = int(os.getenv("ANALYSIS_MAX_LONG_EDGE_PX", "3072"))
 
+    # OCR provider settings (for live mode)
+    OCR_PROVIDER: str = os.getenv("OCR_PROVIDER", "google")
+    OCR_API_KEY: Optional[str] = os.getenv("OCR_API_KEY")
+    OCR_API_ENDPOINT: Optional[str] = os.getenv("OCR_API_ENDPOINT")
+
+    # Translation provider settings (for live mode)
+    OPENAI_API_KEY: Optional[str] = os.getenv("OPENAI_API_KEY")
+    TRANSLATION_MODEL: str = os.getenv("TRANSLATION_MODEL", "gpt-4o-mini")
+
     class Config:
         """Pydantic config."""
 
@@ -38,4 +47,5 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
 

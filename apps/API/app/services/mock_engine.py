@@ -194,3 +194,4 @@ def _generate_mock_result(
         detectedText=detected_text,
     )
 
+

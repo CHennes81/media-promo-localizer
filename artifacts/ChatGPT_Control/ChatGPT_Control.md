@@ -1,6 +1,6 @@
 # ChatGPT Control Document – Media Promo Localizer
 
-> **Purpose:** This document is the the persistent “external state” for ChatGPT when working on the **Media Promo Localizer** project.  
+> **Purpose:** This document is the the persistent “external state” for ChatGPT when working on the **Media Promo Localizer** project.
 > It captures project context, invariants, conventions, and key decisions so that new ChatGPT threads can resume work reliably
 > even after context limits are reached.
 
@@ -89,7 +89,7 @@ These are cross‑thread assumptions ChatGPT should always maintain unless the d
   2. Be recorded as a revision to the relevant doc(s).
   3. Include a short entry in `DevProgress.md` and, if appropriate, this control doc.
 
-- **Cursor is the primary codegen engine.**  
+- **Cursor is the primary codegen engine.**
   ChatGPT’s responsibilities are:
   - Designing / updating specs and control docs.
   - Helping design Cursor prompts and checklists.
@@ -196,8 +196,10 @@ This is **intentionally concise**; detailed narrative belongs in `DevProgress.md
    - All project control docs restructured; `API_Definition.md` consolidated.
    - `ControlDocsInfo.md` created to describe roles & responsibilities of each control doc.
    - `ChatGPT_Control.md` created under `artifacts/ChatGPT/` as ChatGPT’s external state.
-2. **2025‑12‑10 – Cursor error‑fixing SOP**
-   - When FastAPI/Uvicorn/tests break, we prefer to prompt Cursor to fix the issues in a new “fix the bug” plan prompt, rather than doing extensive manual edits.
+2. **2025-12-10 – Cursor error-fixing SOP**
+   - For any program bugs, failing tests, or runtime errors in the repo, ChatGPT must **always** design a targeted Cursor prompt and have Cursor perform the code changes.
+   - ChatGPT should only propose direct code snippets or manual patching when Chris explicitly asks for that instead of using Cursor.
+   - Bug-fix prompts should reference the relevant tests and logs, constrain the scope of files to modify, and remind Cursor to update `DevProgress.md` and the active `DevChecklist_SprintN.md` as tasks are completed.
 3. **2025‑12‑10 – Health endpoint behavior**
    - `/health` must return status, uptimeSeconds, and version; uptime derived from `app.state.startup_time` set in FastAPI lifespan context.
 4. **2025‑12‑10 – Context management approach**

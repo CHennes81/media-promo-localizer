@@ -128,3 +128,4 @@ class LocalizationJob(BaseModel):
             error=self.error,
         )
 
+
