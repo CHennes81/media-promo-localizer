@@ -203,6 +203,16 @@ This is **intentionally concise**; detailed narrative belongs in `DevProgress.md
 4. **2025‑12‑10 – Context management approach**
    - Each new Cursor chat: load control docs from `/artifacts` and rely on them instead of long-lived conversations.
    - Each new ChatGPT thread: load `ChatGPT_Control.md`, `FuncTechSpec.md`, `DevProcess.md` at minimum.
+5. **2025‑12‑10 – Frontend CI & Node / Rollup behavior**
+   - Frontend GitHub Actions workflow must lint, type-check, and build the web app successfully on Node 20+.
+   - Treat `react-refresh/only-export-components` as a **warning**, not an error, so files can export both components and shared constants.
+   - If CI fails with Rollup optional native dependency errors, preferred fix is:
+     1. Remove `node_modules` and the root `package-lock.json`.
+     2. Run `npm install` at the repo root to regenerate the lockfile.
+     3. Re-run `npm run -w @app/web lint` and `npm run -w @app/web build` locally, then commit the updated lockfile.
+
+   - Each new Cursor chat: load control docs from `/artifacts` and rely on them instead of long-lived conversations.
+   - Each new ChatGPT thread: load `ChatGPT_Control.md`, `FuncTechSpec.md`, `DevProcess.md` at minimum.
 
 (As we move forward, we’ll append more items here when they are _truly_ cross‑thread decisions.)
 
