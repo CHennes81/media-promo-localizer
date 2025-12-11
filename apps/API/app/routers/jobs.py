@@ -111,14 +111,31 @@ async def _save_uploaded_file(file: UploadFile, job_id: str) -> tuple[str, int]:
         )
 
 
+def _get_localization_mode() -> str:
+    """
+    Get the effective localization mode (case-insensitive).
+
+    Returns:
+        Normalized mode string: "live" or "mock"
+    """
+    mode = settings.LOCALIZATION_MODE
+    if mode and mode.lower() == "live":
+        return "live"
+    return "mock"
+
+
 def _get_localization_engine():
     """
     Get the appropriate localization engine based on configuration.
 
     Returns:
         Engine instance (LiveLocalizationEngine) or None for mock mode
+
+    Raises:
+        ValueError: If live mode is requested but required API keys are missing
     """
-    if settings.LOCALIZATION_MODE == "live":
+    mode = _get_localization_mode()
+    if mode == "live":
         # Validate required config for live mode
         if not settings.OCR_API_KEY:
             raise ValueError(
@@ -155,11 +172,14 @@ async def _process_job_background(job: LocalizationJob) -> None:
         job_store.update_job(job)
 
         # Select engine based on mode
-        if settings.LOCALIZATION_MODE == "live":
+        mode = _get_localization_mode()
+        if mode == "live":
             engine = _get_localization_engine()
+            logger.info(f"JobStarted jobId={job.jobId} JobEngine=LIVE")
             updated_job = await engine.run(job)
         else:
             # Use mock engine
+            logger.info(f"JobStarted jobId={job.jobId} JobEngine=MOCK")
             updated_job = await run_mock_engine(job)
 
         # Update job store with final result

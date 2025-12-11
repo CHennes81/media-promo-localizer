@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.routers import health, jobs
+from app.routers.jobs import _get_localization_mode
 from app.utils.errors import APIError, create_error_response
 
 # Configure logging
@@ -29,6 +30,21 @@ async def lifespan(app: FastAPI):
     """
     # Startup: set the startup timestamp
     app.state.startup_time = datetime.now(timezone.utc)
+
+    # Log localization mode and engine configuration
+    mode = _get_localization_mode()
+    if mode == "live":
+        ocr_client = "CloudOcrClient (Google Vision)"
+        translation_client = "LlmTranslationClient (OpenAI)"
+        inpainting_client = "StubInpaintingClient"
+        logger.info(
+            f"LocalizationMode=LIVE Engine=LiveLocalizationEngine "
+            f"OCR={ocr_client} Translation={translation_client} "
+            f"Inpainting={inpainting_client}"
+        )
+    else:
+        logger.info("LocalizationMode=MOCK Engine=MockLocalizationEngine")
+
     logger.info("Application startup complete")
     yield
     # Shutdown: cleanup if needed (currently none)
