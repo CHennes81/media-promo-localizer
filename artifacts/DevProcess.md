@@ -1,5 +1,12 @@
 # Dev Process – Media Promo Localizer
 
+> **Version History**
+>
+> - 2025‑12‑10 – v1.1 – Clarified how control docs, sprints, Cursor/Sonnet sessions, and DevProgress work together as a repeatable workflow.
+> - 2025‑11‑xx – v1.0 – Initial version prior to control‑doc consolidation.
+
+---
+
 **Audience:** Human developers and AI coding assistants (e.g., Claude, ChatGPT)
 
 This document defines **how work should be done** in this repo when using AI-assisted, spec-driven development.

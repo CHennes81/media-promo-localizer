@@ -1,5 +1,12 @@
 # Commit Message Guide
 
+> **Version History**
+>
+> - 2025‑12‑10 – v1.1 – Aligned with Conventional Commits, clarified branch/tag naming, and linked commit practices to versioning and release metadata.
+> - 2025‑11‑xx – v1.0 – Initial version prior to control‑doc consolidation.
+
+---
+
 This project uses **Conventional Commits**. Husky + commitlint will reject messages that don’t follow this format.
 
 ## Basic Format

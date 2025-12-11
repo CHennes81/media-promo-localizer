@@ -1,5 +1,12 @@
 # Development Progress Log – Media Promo Localizer
 
+> **Version History**
+>
+> - 2025‑12‑10 – v1.1 – Reinforced that this log is append‑only and that each entry should correspond to a single logical unit of work (AI or human), updated immediately after completion.
+> - 2025‑11‑xx – v1.0 – Initial version prior to control‑doc consolidation.
+
+---
+
 **Location:** `artifacts/DevProgress.md`  
 **Audience:** Human developers and AI coding assistants
 

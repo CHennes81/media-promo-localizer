@@ -1,5 +1,12 @@
 # Coding Standards – Media Promo Localizer
 
+> **Version History**
+>
+> - 2025‑12‑10 – v1.1 – Clarified AI/human collaboration, DevChecklist & DevProgress expectations, and generalised standards for use with Cursor/Sonnet.
+> - 2025‑11‑xx – v1.0 – Initial version prior to control‑doc consolidation.
+
+---
+
 **Location:** `artifacts/coding/CodingStandards.md`  
 **Applies to:** This repository (frontend, backend, scripts, tests)
 

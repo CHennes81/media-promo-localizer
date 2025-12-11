@@ -1,5 +1,12 @@
 # Sprint 2 – Backend Development Checklist (FastAPI, Mock Pipeline)
 
+> **Version History**
+>
+> - 2025‑12‑10 – v1.1 – Marked this as the canonical implementation checklist for Sprint 2 and emphasised that items should be checked off as they are completed, not in bulk.
+> - 2025‑11‑xx – v1.0 – Initial version prior to control‑doc consolidation.
+
+---
+
 Repo: `CHennes81/media-promo-localizer`
 Scope: **Backend only**, `apps/api/` only. **Do not modify `apps/web/`.**
 
