@@ -185,3 +185,68 @@ These checks are **manual** and are for Chris, not Cursor:
 > - All items in sections 0–6 are checked.
 > - Manual smoke tests in section 7 have been attempted and any issues recorded.
 > - Backend tests are green and `LOCALIZATION_MODE=live` works end-to-end with real providers (assuming valid API keys).
+
+---
+
+## 8. Sprint 3 – Batch 2: Line-level OCR regions, debug payload, and UI improvements
+
+> **Version History**
+>
+> - 2025‑12‑11 – v1.1 – Added Batch 2 checklist for line-level OCR, debug payload, and frontend UI improvements.
+
+### 8.1 Backend: Line-level OCR regions and debug payload
+
+- [x] 8.1.1 Create `DebugTextRegion` model with:
+  - `id`, `role`, `bbox_norm` (x, y, width, height), `original_text`, `translated_text`, `is_localizable`
+- [x] 8.1.2 Update OCR client to group words into single-line regions:
+  - Parse Vision response to word-level
+  - Group words using vertical clustering (y-coordinate overlap)
+  - Compute tight bounding boxes per line
+- [x] 8.1.3 Enhance role detection with credits heuristics:
+  - Lines near bottom (y > 0.75-0.80)
+  - Wide bbox but small height (compressed text)
+  - High character density
+- [x] 8.1.4 Add `DebugInfo` model and extend `JobResult` with optional `debug` field:
+  - `debug.regions`: list of `DebugTextRegion`
+  - `debug.timings`: `ProcessingTimeMs`
+- [x] 8.1.5 Configure logging with both stdout and file handlers:
+  - StreamHandler for stdout
+  - FileHandler writing to `logs/app.log`
+  - Shared log format (timestamp, level, logger name, message)
+- [x] 8.1.6 Update `LiveLocalizationEngine` to:
+  - Create debug regions after OCR grouping
+  - Populate `translated_text` after translation
+  - Emit structured log messages: `[OCR] region id=...` and `[Xlate] region id=...`
+  - Attach debug payload to job result
+
+### 8.2 Frontend: Result layout, Details dialog, and OCR overlays
+
+- [x] 8.2.1 Update `ResultView` to show single large localized image:
+  - Remove side-by-side "Original / Localized" comparison
+  - Show single large localized image (responsive, maintain aspect ratio)
+  - Keep existing timing metrics cards
+- [x] 8.2.2 Add "View Details" button that opens dialog with debug regions table
+- [x] 8.2.3 Add "Show OCR Boxes" toggle (checkbox/switch)
+- [x] 8.2.4 Implement Details dialog component:
+  - Table showing all `debug.regions`
+  - Columns: Role, BBox (normalized x, y, w, h), Original text, Translated text, Localizable
+  - Handle empty/missing debug info gracefully
+- [x] 8.2.5 Implement purple OCR bounding-box overlays:
+  - When toggle is ON, overlay rectangles on localized image
+  - Use normalized bbox \* rendered image dimensions for positioning
+  - Purple border, semi-transparent fill
+- [x] 8.2.6 Update TypeScript types to include `debug` field in `LocalizationResult`
+
+### 8.3 Tests and documentation
+
+- [x] 8.3.1 Update `test_live_engine.py` to verify debug payload presence
+- [ ] 8.3.2 Update `DevProgress.md` with Batch 2 entry
+- [x] 8.3.3 Ensure all tests pass and linting is clean
+
+> **Completion Criteria for Sprint 3 (Batch 2):**
+>
+> - All items in section 8.1 (backend) are checked.
+> - All items in section 8.2 (frontend) are checked.
+> - Tests pass and debug payload is verified in test assertions.
+> - Logging writes to both stdout and `logs/app.log`.
+> - Frontend displays single localized image with Details dialog and OCR box overlays working.

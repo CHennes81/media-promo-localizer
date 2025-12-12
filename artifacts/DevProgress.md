@@ -136,3 +136,108 @@ Guidelines:
     - Improve text role classification heuristics (currently simple keyword-based)
     - Address any QA issues discovered in future testing
   - All Batch 1 checklist items (sections 0-6, section 7.2) marked complete in `DevChecklist_Sprint3.md`
+
+### 2025-12-11 – [Sprint 3] batch 2: line-level OCR regions, debug payload, and UI improvements
+
+- Mode: IMPLEMENTATION_MODE
+- Initiator: Cursor / Claude
+- Summary:
+  - Created `DebugTextRegion` model with id, role, bbox_norm (x, y, width, height), original_text, translated_text, is_localizable.
+  - Updated OCR client to group words into single-line regions using vertical clustering based on y-coordinate overlap.
+  - Enhanced role detection with credits heuristics (bottom position > 0.75, wide/short bbox, high character density).
+  - Added `DebugInfo` model and extended `JobResult` with optional `debug` field containing regions and timings.
+  - Configured logging with both StreamHandler (stdout) and FileHandler (`logs/app.log`) with shared format.
+  - Updated `LiveLocalizationEngine` to create debug regions after OCR, populate translated_text after translation, and emit structured log messages (`[OCR]` and `[Xlate]`).
+  - Updated frontend `ResultView` to show single large localized image (removed side-by-side comparison).
+  - Added "View Details" button and "Show OCR Boxes" toggle.
+  - Implemented Details dialog component with table showing all debug regions (Role, BBox, Original text, Translated text, Localizable).
+  - Implemented purple OCR bounding-box overlays on localized image when toggle is enabled.
+  - Updated TypeScript types to include `debug` field in `LocalizationResult`.
+- Files touched (high level):
+  - `apps/API/app/models.py` (added DebugTextRegion, DebugInfo, updated JobResult, ProcessingTimeMs)
+  - `apps/API/app/clients/ocr_client.py` (added line-level grouping with vertical clustering)
+  - `apps/API/app/services/live_engine.py` (added debug region creation, log messages, debug payload)
+  - `apps/API/app/main.py` (configured logging with file handler)
+  - `apps/web/src/components/ResultView.tsx` (single image layout, Details dialog, OCR overlays)
+  - `apps/web/src/components/ResultView.css` (updated styles for new layout)
+  - `apps/web/src/types/api.ts` (added DebugTextRegion, DebugInfo types)
+  - `apps/API/tests/test_live_engine.py` (updated to verify debug payload)
+- Tests:
+  - pytest (tests updated to verify debug payload)
+- Outcome: completed
+- Notes:
+  - OCR client now groups words into line-level regions, especially useful for credits bands.
+  - Debug payload is optional and additive to existing API contract (backward compatible).
+  - Logging writes to both stdout and `logs/app.log` with structured messages for each region.
+  - Frontend Details dialog shows all debug regions in a scrollable table.
+  - OCR box overlays use normalized bounding boxes multiplied by rendered image dimensions.
+  - Credits detection heuristics help identify dense text bands at the bottom of posters.
+
+### 2025-12-11 – [Sprint 3] batch 2 follow-up: wire debug UI and add per-job logging
+
+- Mode: IMPLEMENTATION_MODE
+- Initiator: Cursor / Claude
+- Summary:
+  - Fixed frontend ResultView to properly handle debug state and enable buttons when debug data exists.
+  - Fixed OCR overlay positioning by ensuring container is relatively positioned and overlays have correct z-index.
+  - Added comprehensive external call logging to OCR client (before/after with timestamps, status codes, durations).
+  - Added comprehensive external call logging to Translation client (before/after with timestamps, status codes, durations).
+  - Changed region logs from DEBUG to INFO level so they appear in logs/app.log.
+  - Added job-level summary logging after completion with region counts by role and total processing time.
+  - Enhanced error logging in OCR client to include job context.
+  - All logging now writes to both stdout and logs/app.log as configured.
+- Files touched (high level):
+  - `apps/web/src/components/ResultView.tsx` (fixed imageRef duplicate, verified debug state handling)
+  - `apps/web/src/components/ResultView.css` (fixed overlay positioning with z-index)
+  - `apps/API/app/clients/ocr_client.py` (added before/after call logging with job_id, enhanced error logging)
+  - `apps/API/app/clients/translation_client.py` (added before/after call logging with job_id)
+  - `apps/API/app/services/live_engine.py` (changed region logs to INFO, added job summary, pass job_id to clients)
+- Tests:
+  - No new tests added (existing tests should still pass with optional job_id parameter)
+- Outcome: completed
+- Notes:
+  - View Details button and Show OCR Boxes toggle now properly enable when debug data is present.
+  - OCR overlays render correctly with purple bounding boxes when toggle is enabled.
+  - All per-job logs (external calls, regions, translations, summaries) now appear in both stdout and logs/app.log.
+  - Log messages include job_id for traceability throughout the pipeline.
+  - Region logs truncate text to 120 characters for readability.
+
+### 2025-12-11 – [Sprint 3] logging first pass: comprehensive structured logging
+
+- Mode: IMPLEMENTATION_MODE
+- Initiator: Cursor / Claude
+- Summary:
+  - Added request logging middleware that logs all HTTP requests with method, path, status, duration, request ID, and client IP.
+  - Enhanced logging configuration to support TRACE_CALLS environment variable for optional method entry/exit tracing.
+  - Created logging utilities module with trace_calls decorator and service call wrapper.
+  - Added comprehensive service call logging to OCR, Translation, and Inpainting clients (before/after with timestamps, status codes, durations, payload/response sizes).
+  - Added pipeline stage logging to live_engine and mock_engine (start/end of each stage with durations and counts).
+  - Enhanced config logging on startup with resolved values (redacting secrets).
+  - Applied trace decorator to key functions in live_engine (only active when TRACE_CALLS=true).
+  - Created frontend logger utility with structured logging format.
+  - Added frontend logging around localization action (button click, job creation, success/failure, with mode detection).
+  - Added tests for request middleware (X-Request-Id header, request logging).
+- Files touched (high level):
+  - `apps/API/app/config.py` (added TRACE_CALLS env var)
+  - `apps/API/app/main.py` (added RequestLoggingMiddleware, enhanced config logging)
+  - `apps/API/app/utils/logging.py` (new - trace decorator and service call wrapper)
+  - `apps/API/app/clients/ocr_client.py` (enhanced logging with request_id, payload size, response size)
+  - `apps/API/app/clients/translation_client.py` (enhanced logging with request_id, payload size, response size)
+  - `apps/API/app/clients/inpainting_client.py` (added stub service call logging)
+  - `apps/API/app/services/live_engine.py` (added pipeline stage logging, applied trace decorator)
+  - `apps/API/app/services/mock_engine.py` (added pipeline stage logging)
+  - `apps/web/src/utils/logger.ts` (new - frontend logger utility)
+  - `apps/web/src/components/LocalizationWorkspace.tsx` (added logging around localization action)
+  - `apps/web/src/services/mockLocalizationService.ts` (added logging to createJob)
+  - `apps/API/tests/test_middleware.py` (new - tests for request middleware)
+- Tests:
+  - pytest (added middleware tests)
+- Outcome: completed
+- Notes:
+  - All logs write to both stdout and `apps/API/logs/app.log`.
+  - Request middleware generates X-Request-Id header for correlation.
+  - Service call logs include correlation IDs (request_id and job_id when available).
+  - Pipeline stage logs include stage name, duration, and relevant counts (regions, words, etc.).
+  - TRACE_CALLS decorator is a no-op unless TRACE_CALLS=true, allowing verbose debugging without code changes.
+  - Frontend logs include component, action, and context for easy filtering.
+  - All logging is structured and grep-friendly for debugging without DevTools.
