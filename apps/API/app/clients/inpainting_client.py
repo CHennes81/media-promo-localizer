@@ -46,3 +46,4 @@ class StubInpaintingClient(IInpaintingClient):
         # Return original image - no inpainting performed
         return image_bytes
 
+

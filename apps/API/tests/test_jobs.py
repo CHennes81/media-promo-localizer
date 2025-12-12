@@ -168,3 +168,4 @@ def test_create_job_invalid_metadata_json(client, sample_image_jpeg):
     assert data["error"]["code"] == "INVALID_INPUT"
 
 
+

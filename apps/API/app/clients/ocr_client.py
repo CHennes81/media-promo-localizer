@@ -129,3 +129,4 @@ class CloudOcrClient(IOcrClient):
             logger.error(f"OCR processing failed: {e}", exc_info=True)
             raise Exception(f"OCR processing failed: {str(e)}")
 
+

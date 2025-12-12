@@ -105,3 +105,4 @@ def test_get_localization_engine_live_mode_case_insensitive():
 
                             assert engine is not None
                             mock_create.assert_called_once()
+

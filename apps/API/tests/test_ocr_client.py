@@ -143,3 +143,4 @@ def test_cloud_ocr_client_missing_api_key():
         CloudOcrClient(api_key="")
     assert "OCR_API_KEY is required" in str(exc_info.value)
 
+

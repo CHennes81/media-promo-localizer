@@ -28,3 +28,4 @@ def test_health_check_uptime_increases(client):
     assert data2["uptimeSeconds"] >= data1["uptimeSeconds"]
 
 
+

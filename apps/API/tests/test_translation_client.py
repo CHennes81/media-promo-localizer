@@ -96,3 +96,4 @@ def test_llm_translation_client_missing_api_key():
         LlmTranslationClient(api_key="")
     assert "OPENAI_API_KEY is required" in str(exc_info.value)
 
+

@@ -201,3 +201,4 @@ async def test_live_engine_is_localizable(mock_ocr_client, mock_translation_clie
     )
     assert engine._is_localizable(tagline_region)
 
+

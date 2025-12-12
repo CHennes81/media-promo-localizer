@@ -95,6 +95,8 @@ These are cross‑thread assumptions ChatGPT should always maintain unless the d
   - Helping design Cursor prompts and checklists.
   - Troubleshooting, reasoning, and “explaining what’s going on” when things get weird.
   - Helping Chris debug local issues by reasoning from logs, screenshots, etc.
+  - Cursor must ALWAYS fix all program errors automatically — including failing tests, runtime exceptions, miswired dependencies, broken imports, etc.
+    ChatGPT should never propose manual code edits unless explicitly requested.
 
 ### 3.3 Versioning & Health‑check Conventions
 
@@ -212,9 +214,31 @@ This is **intentionally concise**; detailed narrative belongs in `DevProgress.md
      1. Remove `node_modules` and the root `package-lock.json`.
      2. Run `npm install` at the repo root to regenerate the lockfile.
      3. Re-run `npm run -w @app/web lint` and `npm run -w @app/web build` locally, then commit the updated lockfile.
+6. **Environment & Configuration Decisions**
 
-   - Each new Cursor chat: load control docs from `/artifacts` and rely on them instead of long-lived conversations.
-   - Each new ChatGPT thread: load `ChatGPT_Control.md`, `FuncTechSpec.md`, `DevProcess.md` at minimum.
+- Backend now uses **Pydantic v2 `SettingsConfigDict`** for environment variable loading, with the following precedence:
+
+1. **Actual environment variables** (highest priority)
+2. **`.env.local`** — for local development (**gitignored**, used for local API keys)
+3. **`.env`**
+4. **Built-in defaults**
+
+- **`.env.local` is the correct location for all local API keys** and must never be committed.
+- Required variables for backend operation in **live mode**:
+  - **`LOCALIZATION_MODE=live`**
+  - **`OCR_API_KEY=<google_vision_key>`**
+  - **`OCR_API_ENDPOINT=https://vision.googleapis.com/v1/images:annotate`**
+  - **`OPENAI_API_KEY=<openai_api_key>`**
+  - **`TRANSLATION_MODEL=gpt-4o-mini`**
+
+5. LOCALIZATION_MODE is case-insensitive; "live" or any capitalization of it uses live services, otherwise mock services are used.
+6. The script "scripts/dev.sh" is used to start the system locally:
+   - Starts backend with virtualenv
+   - Starts frontend (npm run dev -w @app/web)
+   - Cleans up backend process on exit
+
+- Each new Cursor chat: load control docs from `/artifacts` and rely on them instead of long-lived conversations.
+- Each new ChatGPT thread: load `ChatGPT_Control.md`, `FuncTechSpec.md`, `DevProcess.md` at minimum.
 
 (As we move forward, we’ll append more items here when they are _truly_ cross‑thread decisions.)
 
@@ -269,3 +293,15 @@ When revising `ChatGPT_Control.md`:
    - “Here is the updated `ChatGPT_Control.md`; please overwrite the existing file under `artifacts/ChatGPT/` and commit it.”
 
 This discipline lets us use ChatGPT effectively across many threads without losing context or introducing contradictory rules.
+
+---
+
+Future Work Remianing from Sprint 3 Batch 1
+
+---
+
+- Replace stub inpainting with real provider
+- Implement region cropping + mask generation
+- Replace localized text visually
+- Improve OCR bounding box normalization
+- Improved role classification for text regions (title, tagline, credits, legal)
