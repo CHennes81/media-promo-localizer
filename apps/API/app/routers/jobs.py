@@ -23,7 +23,7 @@ logger = logging.getLogger("media_promo_localizer")
 router = APIRouter()
 
 # Create uploads directory if it doesn't exist
-UPLOADS_DIR = Path("apps/api/tmp/uploads")
+UPLOADS_DIR = Path("tmp/uploads")
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -328,6 +328,3 @@ async def get_localization_job(job_id: str):
             message="An unexpected error occurred while retrieving the job.",
             http_status=status.HTTP_500_INTERNAL_SERVER_ERROR,
         )
-
-
-
