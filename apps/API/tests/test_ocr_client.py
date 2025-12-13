@@ -1,6 +1,7 @@
 """
 Tests for OCR client implementations.
 """
+import logging
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -144,3 +145,51 @@ def test_cloud_ocr_client_missing_api_key():
     assert "OCR_API_KEY is required" in str(exc_info.value)
 
 
+@pytest.mark.asyncio
+async def test_cloud_ocr_client_logs_job_id(mock_httpx_response, sample_image_bytes):
+    """Test that OCR client includes job_id in ServiceCall logs when provided."""
+    with patch("app.clients.ocr_client.httpx.AsyncClient") as mock_client:
+        mock_client.return_value.__aenter__.return_value.post = AsyncMock(
+            return_value=mock_httpx_response
+        )
+        with patch("app.clients.ocr_client.Image.open") as mock_image:
+            mock_img = MagicMock()
+            mock_img.size = (100, 50)
+            mock_image.return_value = mock_img
+
+            # Capture log messages
+            log_messages = []
+            handler = logging.Handler()
+            handler.emit = lambda record: log_messages.append(record.getMessage())
+            logger = logging.getLogger("media_promo_localizer")
+            logger.addHandler(handler)
+            logger.setLevel(logging.INFO)
+
+            try:
+                client = CloudOcrClient(api_key="test-key")
+                test_job_id = "test-job-123"
+                await client.recognize_text(sample_image_bytes, job_id=test_job_id)
+
+                # Verify ServiceCall log contains job_id
+                service_call_logs = [
+                    msg for msg in log_messages if "ServiceCall" in msg and "OCR" in msg
+                ]
+                assert len(service_call_logs) > 0, "ServiceCall log should be emitted"
+                assert f"job={test_job_id}" in service_call_logs[0], (
+                    f"ServiceCall log should contain job={test_job_id}, "
+                    f"got: {service_call_logs[0]}"
+                )
+
+                # Verify ServiceResponse log also contains job_id
+                service_response_logs = [
+                    msg
+                    for msg in log_messages
+                    if "ServiceResponse" in msg and "OCR" in msg
+                ]
+                assert len(service_response_logs) > 0, "ServiceResponse log should be emitted"
+                assert f"job={test_job_id}" in service_response_logs[0], (
+                    f"ServiceResponse log should contain job={test_job_id}, "
+                    f"got: {service_response_logs[0]}"
+                )
+            finally:
+                logger.removeHandler(handler)

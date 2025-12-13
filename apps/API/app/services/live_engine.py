@@ -94,7 +94,9 @@ class LiveLocalizationEngine:
                 ocr_time_ms = max(1, int((time.perf_counter() - ocr_start) * 1000))
             else:
                 try:
-                    ocr_result = await self.ocr_client.recognize_text(image_bytes)
+                    ocr_result = await self.ocr_client.recognize_text(
+                        image_bytes, job_id=job.jobId
+                    )
                     ocr_time_ms = max(1, int((time.perf_counter() - ocr_start) * 1000))
 
                     # Classify text regions by role (simple heuristic for now)
