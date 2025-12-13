@@ -12,9 +12,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from app.clients.inpainting_client import StubInpaintingClient
-from app.clients.interfaces import IOcrClient, IInpaintingClient, ITranslationClient
+from app.clients.interfaces import IOcrClient, IInpaintingClient, ITranslationClient, TranslatedRegion
 from app.clients.ocr_client import CloudOcrClient
 from app.clients.translation_client import LlmTranslationClient
+from app.config import settings
 from app.models import (
     DetectedText,
     ErrorInfo,
@@ -75,124 +76,203 @@ class LiveLocalizationEngine:
                 image_bytes = f.read()
 
             # Stage 1: OCR
-            logger.info(f"JobStarted jobId={job.jobId} stage=OCR")
+            stage_name = "OCR"
+            logger.info(f"PipelineStageStart job={job.jobId} stage={stage_name}")
             ocr_start = time.perf_counter()
-            try:
-                ocr_result = await self.ocr_client.recognize_text(image_bytes)
-                ocr_time_ms = max(1, int((time.perf_counter() - ocr_start) * 1000))
+            classified_regions: list[DetectedText] = []
+            ocr_time_ms = 0
+            skipped = False
 
-                # Classify text regions by role (simple heuristic for now)
-                # In future, this could use an LLM for more sophisticated classification
-                classified_regions = self._classify_text_regions(ocr_result.text_regions)
-
-                job.progress = Progress(
-                    stage=ProgressStage.OCR,
-                    percent=25,
-                    stageTimingsMs={"ocr": ocr_time_ms},
-                )
-                job.updatedAt = datetime.now(timezone.utc)
+            if settings.SKIP_OCR:
+                skipped = True
                 logger.info(
-                    f"JobUpdated jobId={job.jobId} stage=OCR durationMs={ocr_time_ms} "
-                    f"regions={len(classified_regions)}"
+                    f"PipelineStageSkipped job={job.jobId} stage={stage_name} "
+                    f"reason=env_var env=SKIP_OCR value=true"
                 )
-            except Exception as e:
-                logger.error(f"OCR failed for job {job.jobId}: {e}", exc_info=True)
-                job.status = JobStatus.FAILED
-                job.error = ErrorInfo(
-                    code="OCR_MODEL_ERROR",
-                    message=f"OCR processing failed: {str(e)}",
-                    retryable=True,
-                )
-                job.updatedAt = datetime.now(timezone.utc)
-                return job
+                # Use empty list of text regions as OCR output
+                classified_regions = []
+                ocr_time_ms = max(1, int((time.perf_counter() - ocr_start) * 1000))
+            else:
+                try:
+                    ocr_result = await self.ocr_client.recognize_text(image_bytes)
+                    ocr_time_ms = max(1, int((time.perf_counter() - ocr_start) * 1000))
+
+                    # Classify text regions by role (simple heuristic for now)
+                    # In future, this could use an LLM for more sophisticated classification
+                    classified_regions = self._classify_text_regions(ocr_result.text_regions)
+                except Exception as e:
+                    logger.error(f"OCR failed for job {job.jobId}: {e}", exc_info=True)
+                    job.status = JobStatus.FAILED
+                    job.error = ErrorInfo(
+                        code="OCR_MODEL_ERROR",
+                        message=f"OCR processing failed: {str(e)}",
+                        retryable=True,
+                    )
+                    job.updatedAt = datetime.now(timezone.utc)
+                    logger.info(
+                        f"PipelineStageEnd job={job.jobId} stage={stage_name} "
+                        f"durationMs={ocr_time_ms} skipped={skipped}"
+                    )
+                    return job
+
+            job.progress = Progress(
+                stage=ProgressStage.OCR,
+                percent=25,
+                stageTimingsMs={"ocr": ocr_time_ms},
+            )
+            job.updatedAt = datetime.now(timezone.utc)
+            logger.info(
+                f"PipelineStageEnd job={job.jobId} stage={stage_name} "
+                f"durationMs={ocr_time_ms} skipped={skipped} regions={len(classified_regions)}"
+            )
 
             # Stage 2: Translation
-            logger.info(f"JobUpdated jobId={job.jobId} stage=TRANSLATION")
+            stage_name = "TRANSLATION"
+            logger.info(f"PipelineStageStart job={job.jobId} stage={stage_name}")
             translation_start = time.perf_counter()
-            try:
-                # Filter to only localizable regions (per policy)
-                localizable_regions = [
-                    r for r in classified_regions if self._is_localizable(r)
-                ]
+            translated_regions: list[TranslatedRegion] = []
+            translation_time_ms = 0
+            skipped = False
 
-                translated_regions = await self.translation_client.translate_text_regions(
-                    localizable_regions, job.targetLanguage
-                )
-
-                translation_time_ms = max(1, int((time.perf_counter() - translation_start) * 1000))
-
-                job.progress = Progress(
-                    stage=ProgressStage.TRANSLATION,
-                    percent=50,
-                    stageTimingsMs={
-                        "ocr": ocr_time_ms,
-                        "translation": translation_time_ms,
-                    },
-                )
-                job.updatedAt = datetime.now(timezone.utc)
+            if settings.SKIP_TRANSLATION:
+                skipped = True
                 logger.info(
-                    f"JobUpdated jobId={job.jobId} stage=TRANSLATION "
-                    f"durationMs={translation_time_ms} translated={len(translated_regions)}"
+                    f"PipelineStageSkipped job={job.jobId} stage={stage_name} "
+                    f"reason=env_var env=SKIP_TRANSLATION value=true"
                 )
-            except Exception as e:
-                logger.error(
-                    f"Translation failed for job {job.jobId}: {e}", exc_info=True
-                )
-                job.status = JobStatus.FAILED
-                job.error = ErrorInfo(
-                    code="TRANSLATION_MODEL_ERROR",
-                    message=f"Translation processing failed: {str(e)}",
-                    retryable=True,
-                )
-                job.updatedAt = datetime.now(timezone.utc)
-                return job
+                # Set translated_text = original_text for all regions (identity translation)
+                for region in classified_regions:
+                    translated_regions.append(
+                        TranslatedRegion(
+                            original_text=region.text,
+                            translated_text=region.text,
+                            bounding_box=region.boundingBox,
+                            role=region.role,
+                        )
+                    )
+                translation_time_ms = max(1, int((time.perf_counter() - translation_start) * 1000))
+            else:
+                try:
+                    # Filter to only localizable regions (per policy)
+                    localizable_regions = [
+                        r for r in classified_regions if self._is_localizable(r)
+                    ]
+
+                    translated_regions = await self.translation_client.translate_text_regions(
+                        localizable_regions, job.targetLanguage
+                    )
+
+                    translation_time_ms = max(1, int((time.perf_counter() - translation_start) * 1000))
+                except Exception as e:
+                    logger.error(
+                        f"Translation failed for job {job.jobId}: {e}", exc_info=True
+                    )
+                    job.status = JobStatus.FAILED
+                    job.error = ErrorInfo(
+                        code="TRANSLATION_MODEL_ERROR",
+                        message=f"Translation processing failed: {str(e)}",
+                        retryable=True,
+                    )
+                    job.updatedAt = datetime.now(timezone.utc)
+                    logger.info(
+                        f"PipelineStageEnd job={job.jobId} stage={stage_name} "
+                        f"durationMs={translation_time_ms} skipped={skipped}"
+                    )
+                    return job
+
+            job.progress = Progress(
+                stage=ProgressStage.TRANSLATION,
+                percent=50,
+                stageTimingsMs={
+                    "ocr": ocr_time_ms,
+                    "translation": translation_time_ms,
+                },
+            )
+            job.updatedAt = datetime.now(timezone.utc)
+            logger.info(
+                f"PipelineStageEnd job={job.jobId} stage={stage_name} "
+                f"durationMs={translation_time_ms} skipped={skipped} translated={len(translated_regions)}"
+            )
 
             # Stage 3: Inpainting (stub - returns original image)
-            logger.info(f"JobUpdated jobId={job.jobId} stage=INPAINT")
+            stage_name = "INPAINT"
+            logger.info(f"PipelineStageStart job={job.jobId} stage={stage_name}")
             inpaint_start = time.perf_counter()
-            try:
-                # Use stub inpainting (returns original image)
-                inpainted_image_bytes = await self.inpainting_client.inpaint_regions(
-                    image_bytes, classified_regions
-                )
-                inpaint_time_ms = max(1, int((time.perf_counter() - inpaint_start) * 1000))
+            inpainted_image_bytes = image_bytes
+            inpaint_time_ms = 0
+            skipped = False
 
-                job.progress = Progress(
-                    stage=ProgressStage.INPAINT,
-                    percent=75,
-                    stageTimingsMs={
-                        "ocr": ocr_time_ms,
-                        "translation": translation_time_ms,
-                        "inpaint": inpaint_time_ms,
-                    },
-                )
-                job.updatedAt = datetime.now(timezone.utc)
+            if settings.SKIP_INPAINT:
+                skipped = True
                 logger.info(
-                    f"JobUpdated jobId={job.jobId} stage=INPAINT durationMs={inpaint_time_ms}"
+                    f"PipelineStageSkipped job={job.jobId} stage={stage_name} "
+                    f"reason=env_var env=SKIP_INPAINT value=true"
                 )
-            except Exception as e:
-                logger.error(
-                    f"Inpainting failed for job {job.jobId}: {e}", exc_info=True
-                )
-                job.status = JobStatus.FAILED
-                job.error = ErrorInfo(
-                    code="INPAINT_MODEL_ERROR",
-                    message=f"Inpainting processing failed: {str(e)}",
-                    retryable=True,
-                )
-                job.updatedAt = datetime.now(timezone.utc)
-                return job
+                # Pass through the original image bytes as the "localized" image
+                inpainted_image_bytes = image_bytes
+                inpaint_time_ms = max(1, int((time.perf_counter() - inpaint_start) * 1000))
+            else:
+                try:
+                    # Use stub inpainting (returns original image)
+                    inpainted_image_bytes = await self.inpainting_client.inpaint_regions(
+                        image_bytes, classified_regions
+                    )
+                    inpaint_time_ms = max(1, int((time.perf_counter() - inpaint_start) * 1000))
+                except Exception as e:
+                    logger.error(
+                        f"Inpainting failed for job {job.jobId}: {e}", exc_info=True
+                    )
+                    job.status = JobStatus.FAILED
+                    job.error = ErrorInfo(
+                        code="INPAINT_MODEL_ERROR",
+                        message=f"Inpainting processing failed: {str(e)}",
+                        retryable=True,
+                    )
+                    job.updatedAt = datetime.now(timezone.utc)
+                    logger.info(
+                        f"PipelineStageEnd job={job.jobId} stage={stage_name} "
+                        f"durationMs={inpaint_time_ms} skipped={skipped}"
+                    )
+                    return job
+
+            job.progress = Progress(
+                stage=ProgressStage.INPAINT,
+                percent=75,
+                stageTimingsMs={
+                    "ocr": ocr_time_ms,
+                    "translation": translation_time_ms,
+                    "inpaint": inpaint_time_ms,
+                },
+            )
+            job.updatedAt = datetime.now(timezone.utc)
+            logger.info(
+                f"PipelineStageEnd job={job.jobId} stage={stage_name} "
+                f"durationMs={inpaint_time_ms} skipped={skipped}"
+            )
 
             # Stage 4: Packaging (save output image and prepare result)
-            logger.info(f"JobUpdated jobId={job.jobId} stage=PACKAGING")
+            stage_name = "PACKAGING"
+            logger.info(f"PipelineStageStart job={job.jobId} stage={stage_name}")
             packaging_start = time.perf_counter()
+            packaging_time_ms = 0
+            skipped = False
 
-            # Save output image (for now, just copy original since inpainting is stubbed)
-            # In future, this would render translated text onto the inpainted image
-            output_dir = image_path.parent
-            output_path = output_dir / "output.png"
-            with open(output_path, "wb") as f:
-                f.write(inpainted_image_bytes)
+            if settings.SKIP_PACKAGING:
+                skipped = True
+                logger.info(
+                    f"PipelineStageSkipped job={job.jobId} stage={stage_name} "
+                    f"reason=env_var env=SKIP_PACKAGING value=true"
+                )
+                # Still return a valid job result object (use existing in-memory/localized image output as-is)
+                packaging_time_ms = max(1, int((time.perf_counter() - packaging_start) * 1000))
+            else:
+                # Save output image (for now, just copy original since inpainting is stubbed)
+                # In future, this would render translated text onto the inpainted image
+                output_dir = image_path.parent
+                output_path = output_dir / "output.png"
+                with open(output_path, "wb") as f:
+                    f.write(inpainted_image_bytes)
+                packaging_time_ms = max(1, int((time.perf_counter() - packaging_start) * 1000))
 
             # Build detected text list for result (mix of original and translated)
             detected_text_list: list[DetectedText] = []
@@ -213,7 +293,10 @@ class LiveLocalizationEngine:
                     )
                 )
 
-            packaging_time_ms = max(1, int((time.perf_counter() - packaging_start) * 1000))
+            logger.info(
+                f"PipelineStageEnd job={job.jobId} stage={stage_name} "
+                f"durationMs={packaging_time_ms} skipped={skipped}"
+            )
             total_time_ms = (
                 ocr_time_ms + translation_time_ms + inpaint_time_ms + packaging_time_ms
             )
@@ -354,5 +437,3 @@ def create_live_engine(
         translation_client=translation_client,
         inpainting_client=inpainting_client,
     )
-
-

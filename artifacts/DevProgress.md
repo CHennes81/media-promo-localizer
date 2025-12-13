@@ -241,3 +241,36 @@ Guidelines:
   - TRACE_CALLS decorator is a no-op unless TRACE_CALLS=true, allowing verbose debugging without code changes.
   - Frontend logs include component, action, and context for easy filtering.
   - All logging is structured and grep-friendly for debugging without DevTools.
+
+### 2025-12-XX – [Sprint 3] pipeline skip step env vars and skip-event logging
+
+- Mode: IMPLEMENTATION_MODE
+- Initiator: Cursor / Claude
+- Summary:
+  - Added four boolean environment variables (SKIP_OCR, SKIP_TRANSLATION, SKIP_INPAINT, SKIP_PACKAGING) that allow skipping individual pipeline stages for debugging/testing.
+  - Both LiveLocalizationEngine and MockLocalizationEngine respect these skip flags.
+  - Added mandatory structured logging when a step is skipped: PipelineStageSkipped log with job, stage, reason, env var name, and value.
+  - Enhanced PipelineStageStart and PipelineStageEnd logs to include skipped=true flag when a stage is skipped.
+  - When a stage is skipped, the engine still advances job progress, persists state, and provides valid data for downstream steps.
+  - Skip behavior per stage:
+    - SKIP_OCR: Uses empty list of text regions (and empty debug regions).
+    - SKIP_TRANSLATION: Sets translated_text = original_text for all regions (identity translation).
+    - SKIP_INPAINT: Passes through original image bytes as the "localized" image.
+    - SKIP_PACKAGING: Still returns valid job result object using existing in-memory/localized image output.
+  - Added comprehensive tests for skip behavior (SKIP_TRANSLATION and SKIP_OCR) for both live and mock engines.
+- Files touched (high level):
+  - `apps/API/app/config.py` (added SKIP_OCR, SKIP_TRANSLATION, SKIP_INPAINT, SKIP_PACKAGING env vars)
+  - `apps/API/app/main.py` (added skip env var logging in config block)
+  - `apps/API/app/services/live_engine.py` (added skip flag checks, PipelineStageStart/Skipped/End logging, skip behavior implementation)
+  - `apps/API/app/services/mock_engine.py` (added skip flag checks, PipelineStageStart/Skipped/End logging, skip behavior implementation)
+  - `apps/API/tests/test_live_engine.py` (added tests for SKIP_TRANSLATION and SKIP_OCR)
+  - `apps/API/tests/test_mock_engine.py` (new - tests for mock engine skip behavior)
+- Tests:
+  - pytest (added skip behavior tests)
+- Outcome: completed
+- Notes:
+  - All skip env vars default to false (normal operation).
+  - Skip env vars are logged at startup in the config logging block.
+  - When a stage is skipped, PipelineStageStart, PipelineStageSkipped, and PipelineStageEnd logs are all emitted with skipped=true on the end log.
+  - Jobs complete successfully even when stages are skipped, ensuring deterministic behavior for testing.
+  - Skip mode is useful for testing individual pipeline stages in isolation or debugging specific stage issues.

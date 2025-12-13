@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     PIPELINE_ENABLE_INPAINT: bool = Field(default=True, description="Enable inpainting stage")
     PIPELINE_ENABLE_PACKAGING: bool = Field(default=True, description="Enable packaging stage")
 
+    # Pipeline stage skip flags (for debugging/testing)
+    SKIP_OCR: bool = Field(default=False, description="Skip OCR stage")
+    SKIP_TRANSLATION: bool = Field(default=False, description="Skip translation stage")
+    SKIP_INPAINT: bool = Field(default=False, description="Skip inpainting stage")
+    SKIP_PACKAGING: bool = Field(default=False, description="Skip packaging stage")
+
     model_config = SettingsConfigDict(
         # Load .env files in order: .env (lower priority) then .env.local (higher priority)
         # Real environment variables (from shell) override both .env files
@@ -72,6 +78,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-
-
-

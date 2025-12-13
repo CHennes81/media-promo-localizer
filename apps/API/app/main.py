@@ -118,6 +118,10 @@ async def lifespan(app: FastAPI):
     logger.info(f"Config TRACE_CALLS={settings.TRACE_CALLS}")
     logger.info(f"Config MAX_UPLOAD_MB={settings.MAX_UPLOAD_MB}")
     logger.info(f"Config JOB_TTL_SECONDS={settings.JOB_TTL_SECONDS}")
+    logger.info(f"Config SKIP_OCR={settings.SKIP_OCR}")
+    logger.info(f"Config SKIP_TRANSLATION={settings.SKIP_TRANSLATION}")
+    logger.info(f"Config SKIP_INPAINT={settings.SKIP_INPAINT}")
+    logger.info(f"Config SKIP_PACKAGING={settings.SKIP_PACKAGING}")
 
     if mode == "live":
         ocr_client = "CloudOcrClient (Google Vision)"
@@ -194,6 +198,3 @@ async def general_exception_handler(request: Request, exc: Exception):
 # Include routers
 app.include_router(health.router)
 app.include_router(jobs.router, prefix="/v1")
-
-
-

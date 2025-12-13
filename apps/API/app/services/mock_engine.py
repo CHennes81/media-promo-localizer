@@ -5,8 +5,10 @@ Simulates the OCR → translation → inpainting → packaging pipeline.
 import asyncio
 import logging
 import random
+import time
 from datetime import datetime, timezone
 
+from app.config import settings
 from app.models import (
     DetectedText,
     ErrorInfo,
@@ -36,18 +38,48 @@ async def run(job: LocalizationJob) -> LocalizationJob:
         job.updatedAt = datetime.now(timezone.utc)
 
         # Stage 1: OCR
-        logger.info(f"JobStarted jobId={job.jobId} stage=OCR")
-        ocr_time_ms = await _simulate_stage("ocr", 800, 2000)
+        stage_name = "OCR"
+        logger.info(f"PipelineStageStart job={job.jobId} stage={stage_name}")
+        ocr_start = time.perf_counter()
+        skipped = False
+
+        if settings.SKIP_OCR:
+            skipped = True
+            logger.info(
+                f"PipelineStageSkipped job={job.jobId} stage={stage_name} "
+                f"reason=env_var env=SKIP_OCR value=true"
+            )
+            ocr_time_ms = max(1, int((time.perf_counter() - ocr_start) * 1000))
+        else:
+            ocr_time_ms = await _simulate_stage("ocr", 800, 2000)
+
         job.progress = Progress(
             stage=ProgressStage.OCR,
             percent=25,
             stageTimingsMs={"ocr": ocr_time_ms},
         )
         job.updatedAt = datetime.now(timezone.utc)
+        logger.info(
+            f"PipelineStageEnd job={job.jobId} stage={stage_name} "
+            f"durationMs={ocr_time_ms} skipped={skipped}"
+        )
 
         # Stage 2: Translation
-        logger.info(f"JobUpdated jobId={job.jobId} stage=TRANSLATION")
-        translation_time_ms = await _simulate_stage("translation", 600, 1500)
+        stage_name = "TRANSLATION"
+        logger.info(f"PipelineStageStart job={job.jobId} stage={stage_name}")
+        translation_start = time.perf_counter()
+        skipped = False
+
+        if settings.SKIP_TRANSLATION:
+            skipped = True
+            logger.info(
+                f"PipelineStageSkipped job={job.jobId} stage={stage_name} "
+                f"reason=env_var env=SKIP_TRANSLATION value=true"
+            )
+            translation_time_ms = max(1, int((time.perf_counter() - translation_start) * 1000))
+        else:
+            translation_time_ms = await _simulate_stage("translation", 600, 1500)
+
         job.progress = Progress(
             stage=ProgressStage.TRANSLATION,
             percent=50,
@@ -57,10 +89,27 @@ async def run(job: LocalizationJob) -> LocalizationJob:
             },
         )
         job.updatedAt = datetime.now(timezone.utc)
+        logger.info(
+            f"PipelineStageEnd job={job.jobId} stage={stage_name} "
+            f"durationMs={translation_time_ms} skipped={skipped}"
+        )
 
         # Stage 3: Inpainting
-        logger.info(f"JobUpdated jobId={job.jobId} stage=INPAINT")
-        inpaint_time_ms = await _simulate_stage("inpaint", 3000, 6000)
+        stage_name = "INPAINT"
+        logger.info(f"PipelineStageStart job={job.jobId} stage={stage_name}")
+        inpaint_start = time.perf_counter()
+        skipped = False
+
+        if settings.SKIP_INPAINT:
+            skipped = True
+            logger.info(
+                f"PipelineStageSkipped job={job.jobId} stage={stage_name} "
+                f"reason=env_var env=SKIP_INPAINT value=true"
+            )
+            inpaint_time_ms = max(1, int((time.perf_counter() - inpaint_start) * 1000))
+        else:
+            inpaint_time_ms = await _simulate_stage("inpaint", 3000, 6000)
+
         job.progress = Progress(
             stage=ProgressStage.INPAINT,
             percent=75,
@@ -71,11 +120,32 @@ async def run(job: LocalizationJob) -> LocalizationJob:
             },
         )
         job.updatedAt = datetime.now(timezone.utc)
+        logger.info(
+            f"PipelineStageEnd job={job.jobId} stage={stage_name} "
+            f"durationMs={inpaint_time_ms} skipped={skipped}"
+        )
 
         # Stage 4: Packaging
-        logger.info(f"JobUpdated jobId={job.jobId} stage=PACKAGING")
-        packaging_time_ms = await _simulate_stage("packaging", 200, 500)
+        stage_name = "PACKAGING"
+        logger.info(f"PipelineStageStart job={job.jobId} stage={stage_name}")
+        packaging_start = time.perf_counter()
+        skipped = False
+
+        if settings.SKIP_PACKAGING:
+            skipped = True
+            logger.info(
+                f"PipelineStageSkipped job={job.jobId} stage={stage_name} "
+                f"reason=env_var env=SKIP_PACKAGING value=true"
+            )
+            packaging_time_ms = max(1, int((time.perf_counter() - packaging_start) * 1000))
+        else:
+            packaging_time_ms = await _simulate_stage("packaging", 200, 500)
+
         total_time_ms = ocr_time_ms + translation_time_ms + inpaint_time_ms + packaging_time_ms
+        logger.info(
+            f"PipelineStageEnd job={job.jobId} stage={stage_name} "
+            f"durationMs={packaging_time_ms} skipped={skipped}"
+        )
 
         job.progress = Progress(
             stage=ProgressStage.PACKAGING,
@@ -193,6 +263,3 @@ def _generate_mock_result(
         sourceLanguage=source_language,
         detectedText=detected_text,
     )
-
-
-

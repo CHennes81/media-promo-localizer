@@ -282,3 +282,72 @@ async def test_live_engine_translation_failure_shows_translation_stage(
     assert "translation" in result_job.progress.stageTimingsMs
 
 
+@pytest.mark.asyncio
+async def test_live_engine_skip_translation(
+    mock_ocr_client, mock_translation_client, mock_inpainting_client, sample_job, monkeypatch
+):
+    """Test that SKIP_TRANSLATION=true does not call translation client and job completes successfully."""
+    # Set SKIP_TRANSLATION to True
+    monkeypatch.setattr("app.config.settings.SKIP_TRANSLATION", True)
+
+    engine = LiveLocalizationEngine(
+        ocr_client=mock_ocr_client,
+        translation_client=mock_translation_client,
+        inpainting_client=mock_inpainting_client,
+    )
+
+    result_job = await engine.run(sample_job)
+
+    # Verify job completed successfully
+    assert result_job.status == JobStatus.SUCCEEDED
+    assert result_job.result is not None
+
+    # Verify translation client was NOT called
+    mock_translation_client.translate_text_regions.assert_not_called()
+
+    # Verify OCR client WAS called
+    mock_ocr_client.recognize_text.assert_called_once()
+
+    # Verify progress advanced through all stages
+    assert result_job.result.processingTimeMs.translation > 0
+    assert result_job.result.processingTimeMs.total > 0
+
+    # Verify job has valid result with identity translations (original_text = translated_text)
+    assert result_job.result.detectedText is not None
+    assert len(result_job.result.detectedText) > 0
+
+
+@pytest.mark.asyncio
+async def test_live_engine_skip_ocr(
+    mock_translation_client, mock_inpainting_client, sample_job, monkeypatch
+):
+    """Test that SKIP_OCR=true does not call OCR and still completes successfully."""
+    # Set SKIP_OCR to True
+    monkeypatch.setattr("app.config.settings.SKIP_OCR", True)
+
+    # Create a mock OCR client that should not be called
+    mock_ocr_client = MagicMock(spec=CloudOcrClient)
+    mock_ocr_client.recognize_text = AsyncMock()
+
+    engine = LiveLocalizationEngine(
+        ocr_client=mock_ocr_client,
+        translation_client=mock_translation_client,
+        inpainting_client=mock_inpainting_client,
+    )
+
+    result_job = await engine.run(sample_job)
+
+    # Verify job completed successfully
+    assert result_job.status == JobStatus.SUCCEEDED
+    assert result_job.result is not None
+
+    # Verify OCR client was NOT called
+    mock_ocr_client.recognize_text.assert_not_called()
+
+    # Verify progress advanced through all stages
+    assert result_job.result.processingTimeMs.ocr > 0
+    assert result_job.result.processingTimeMs.total > 0
+
+    # Verify job has valid result (empty detected text when OCR is skipped)
+    assert result_job.result.detectedText is not None
+    assert len(result_job.result.detectedText) == 0  # Empty list when OCR is skipped
