@@ -19,6 +19,8 @@ logs/
 *.tmp
 *.swp
 *~
+temp/
+tmp/
 
 # Python
 __pycache__/
