@@ -3,9 +3,12 @@ Pydantic models for API request/response schemas and internal job representation
 """
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from typing import ForwardRef
 
 
 class JobStatus(str, Enum):
@@ -25,6 +28,14 @@ class ProgressStage(str, Enum):
     TRANSLATION = "translation"
     INPAINT = "inpaint"
     PACKAGING = "packaging"
+
+
+class PipelinePlan(BaseModel):
+    """Pipeline execution plan with stage enablement flags."""
+
+    enableTranslation: bool = True
+    enableInpaint: bool = True
+    enablePackaging: bool = True
 
 
 class Progress(BaseModel):
@@ -47,13 +58,42 @@ class DetectedText(BaseModel):
     )
 
 
+class DebugTextRegion(BaseModel):
+    """Debug text region with full metadata for line-level OCR output."""
+
+    id: str = Field(description="Unique identifier for this region")
+    role: str = Field(description="Text role: title, tagline, credits, legal, other, etc.")
+    bbox_norm: List[float] = Field(
+        description="Normalized bounding box [x, y, width, height] in range 0.0-1.0"
+    )
+    original_text: str = Field(description="Original text from OCR")
+    translated_text: Optional[str] = Field(
+        default=None, description="Translated text (if available)"
+    )
+    is_localizable: bool = Field(description="Whether this region is localizable")
+
+
 class ProcessingTimeMs(BaseModel):
     """Processing time breakdown per stage."""
 
     ocr: int = 0
     translation: int = 0
     inpaint: int = 0
+    packaging: int = 0
     total: int = 0
+
+
+class DebugInfo(BaseModel):
+    """Debug information for job result."""
+
+    regions: List["DebugTextRegion"] = Field(
+        default_factory=list, description="Line-level text regions with debug metadata"
+    )
+    timings: ProcessingTimeMs = Field(description="Processing timings per stage")
+
+
+# Update forward references after all models are defined
+DebugInfo.model_rebuild()
 
 
 class JobResult(BaseModel):
@@ -65,6 +105,9 @@ class JobResult(BaseModel):
     language: str
     sourceLanguage: Optional[str] = None
     detectedText: Optional[List[DetectedText]] = None
+    debug: Optional[DebugInfo] = Field(
+        default=None, description="Debug information with line-level regions"
+    )
 
 
 class ErrorInfo(BaseModel):

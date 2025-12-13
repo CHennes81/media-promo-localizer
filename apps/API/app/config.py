@@ -35,6 +35,7 @@ class Settings(BaseSettings):
 
     # Logging
     LOG_LEVEL: str = Field(default="INFO", description="Logging level")
+    TRACE_CALLS: bool = Field(default=False, description="Enable method entry/exit tracing")
 
     # Analysis settings (for future use)
     ANALYSIS_MAX_LONG_EDGE_PX: int = Field(default=3072, description="Max long edge for analysis images")
@@ -47,6 +48,11 @@ class Settings(BaseSettings):
     # Translation provider settings (for live mode)
     OPENAI_API_KEY: Optional[str] = Field(default=None, description="OpenAI API key")
     TRANSLATION_MODEL: str = Field(default="gpt-4o-mini", description="Translation model name")
+
+    # Pipeline stage enablement (for debugging/testing)
+    PIPELINE_ENABLE_TRANSLATION: bool = Field(default=True, description="Enable translation stage")
+    PIPELINE_ENABLE_INPAINT: bool = Field(default=True, description="Enable inpainting stage")
+    PIPELINE_ENABLE_PACKAGING: bool = Field(default=True, description="Enable packaging stage")
 
     model_config = SettingsConfigDict(
         # Load .env files in order: .env (lower priority) then .env.local (higher priority)

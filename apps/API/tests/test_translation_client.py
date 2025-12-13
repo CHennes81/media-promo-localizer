@@ -97,3 +97,47 @@ def test_llm_translation_client_missing_api_key():
     assert "OPENAI_API_KEY is required" in str(exc_info.value)
 
 
+@pytest.mark.asyncio
+async def test_llm_translation_client_no_nameerror_on_exception(sample_regions):
+    """Test that translation client doesn't raise NameError/UnboundLocalError on exceptions.
+
+    This test ensures correlation_str and content are always defined before use in except blocks.
+    """
+    with patch("app.clients.translation_client.AsyncOpenAI") as mock_openai:
+        mock_client = MagicMock()
+        # Simulate an exception during API call
+        mock_client.chat.completions.create = AsyncMock(side_effect=Exception("Network error"))
+        mock_openai.return_value = mock_client
+
+        client = LlmTranslationClient(api_key="test-key", model="gpt-4o-mini")
+
+        # Should raise Exception but NOT NameError or UnboundLocalError
+        with pytest.raises(Exception) as exc_info:
+            await client.translate_text_regions(sample_regions, "fr-FR", job_id="test_job_123")
+
+        # Verify it's our wrapped exception, not a NameError
+        assert "Translation processing failed" in str(exc_info.value)
+        assert not isinstance(exc_info.value, NameError)
+        assert not isinstance(exc_info.value, UnboundLocalError)
+
+
+@pytest.mark.asyncio
+async def test_llm_translation_client_logs_service_response_on_success(sample_regions, mock_openai_response, caplog):
+    """Test that translation client logs ServiceResponse on success."""
+    with patch("app.clients.translation_client.AsyncOpenAI") as mock_openai:
+        mock_client = MagicMock()
+        mock_client.chat.completions.create = AsyncMock(return_value=mock_openai_response)
+        mock_openai.return_value = mock_client
+
+        client = LlmTranslationClient(api_key="test-key")
+        await client.translate_text_regions(sample_regions, "fr-FR", job_id="test_job_123")
+
+        # Verify ServiceResponse log was emitted
+        log_messages = [record.message for record in caplog.records]
+        service_response_logs = [msg for msg in log_messages if "ServiceResponse" in msg and "TRANSLATION" in msg]
+        assert len(service_response_logs) > 0
+        assert any("status=200" in msg for msg in service_response_logs)
+        assert any("durationMs=" in msg for msg in service_response_logs)
+        assert any("responseSizeBytes=" in msg for msg in service_response_logs)
+
+

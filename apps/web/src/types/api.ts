@@ -28,6 +28,20 @@ export interface DetectedText {
   role: 'title' | 'tagline' | 'credits' | 'rating' | 'other';
 }
 
+export interface DebugTextRegion {
+  id: string;
+  role: string;
+  bbox_norm: [number, number, number, number]; // [x, y, width, height] in normalized coordinates
+  original_text: string;
+  translated_text?: string | null;
+  is_localizable: boolean;
+}
+
+export interface DebugInfo {
+  regions: DebugTextRegion[];
+  timings: ProcessingTimeMs;
+}
+
 export interface LocalizationResult {
   imageUrl: string;
   thumbnailUrl?: string;
@@ -35,6 +49,7 @@ export interface LocalizationResult {
   language: string;
   sourceLanguage?: string;
   detectedText?: DetectedText[];
+  debug?: DebugInfo | null;
 }
 
 export interface JobError {

@@ -3,7 +3,8 @@ Translation client implementations using LLM APIs.
 """
 import json
 import logging
-from typing import List
+import time
+from typing import List, Optional
 
 from openai import AsyncOpenAI
 
@@ -30,7 +31,11 @@ class LlmTranslationClient(ITranslationClient):
             raise ValueError("OPENAI_API_KEY is required for live translation mode")
 
     async def translate_text_regions(
-        self, regions: List[DetectedText], target_locale: str
+        self,
+        regions: List[DetectedText],
+        target_locale: str,
+        job_id: Optional[str] = None,
+        request_id: Optional[str] = None,
     ) -> List[TranslatedRegion]:
         """
         Translate text regions to target locale using OpenAI.
@@ -38,6 +43,7 @@ class LlmTranslationClient(ITranslationClient):
         Args:
             regions: List of detected text regions to translate
             target_locale: Target locale code (BCP-47, e.g., "fr-FR")
+            job_id: Optional job ID for logging context
 
         Returns:
             List of TranslatedRegion objects with translated text
@@ -45,6 +51,27 @@ class LlmTranslationClient(ITranslationClient):
         Raises:
             Exception: If translation fails
         """
+        # Log before call
+        endpoint_base = "https://api.openai.com/v1/chat/completions"
+        outbound_timestamp = time.time()
+
+        # Initialize correlation string and content before try block
+        correlation = []
+        if request_id:
+            correlation.append(f"request={request_id}")
+        if job_id:
+            correlation.append(f"job={job_id}")
+        correlation_str = " ".join(correlation) if correlation else ""
+
+        # Initialize content to empty string (will be set after API call)
+        content = ""
+
+        if job_id or request_id:
+            logger.info(
+                f"ServiceCall {correlation_str} service=TRANSLATION endpoint={endpoint_base} "
+                f"outbound_timestamp={outbound_timestamp:.3f} model={self.model}"
+            )
+
         try:
             client = AsyncOpenAI(api_key=self.api_key)
 
@@ -69,6 +96,7 @@ class LlmTranslationClient(ITranslationClient):
             prompt = self._build_translation_prompt(regions_data, target_locale)
 
             # Call OpenAI API
+            call_start = time.perf_counter()
             response = await client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -81,9 +109,22 @@ class LlmTranslationClient(ITranslationClient):
                 temperature=0.3,
                 response_format={"type": "json_object"},
             )
+            call_duration_ms = int((time.perf_counter() - call_start) * 1000)
+            response_timestamp = time.time()
 
             # Parse response
-            content = response.choices[0].message.content
+            content = response.choices[0].message.content if response.choices and response.choices[0].message else ""
+
+            # Log response (OpenAI doesn't return HTTP status in the same way, but we can log success)
+            status_code = 200  # OpenAI client handles errors via exceptions
+            # Calculate response size
+            response_size = len(content.encode('utf-8')) if content else 0
+
+            logger.info(
+                f"ServiceResponse {correlation_str} service=TRANSLATION status={status_code} "
+                f"response_timestamp={response_timestamp:.3f} durationMs={call_duration_ms} "
+                f"responseSizeBytes={response_size}"
+            )
             if not content:
                 raise Exception("Empty response from translation API")
 
@@ -116,11 +157,25 @@ class LlmTranslationClient(ITranslationClient):
             return translated_regions
 
         except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse translation response: {e}")
+            response_timestamp = time.time()
+            # correlation_str and content are guaranteed to be defined before try block
+            logger.error(
+                f"ServiceResponse {correlation_str} service=TRANSLATION status=500 "
+                f"response_timestamp={response_timestamp:.3f} error=JSONDecodeError",
+                exc_info=True,
+            )
             raise Exception("Invalid response format from translation API")
         except Exception as e:
-            logger.error(f"Translation failed: {e}", exc_info=True)
-            raise Exception(f"Translation processing failed: {str(e)}")
+            response_timestamp = time.time()
+            # correlation_str is guaranteed to be defined before try block
+            error_name = type(e).__name__ if e else "UnknownError"
+            error_message = str(e) if e else "Unknown error"
+            logger.error(
+                f"ServiceResponse {correlation_str} service=TRANSLATION status=500 "
+                f"response_timestamp={response_timestamp:.3f} error={error_name}",
+                exc_info=True,
+            )
+            raise Exception(f"Translation processing failed: {error_message}")
 
     def _build_translation_prompt(
         self, regions_data: List[dict], target_locale: str

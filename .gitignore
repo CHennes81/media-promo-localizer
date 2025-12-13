@@ -8,6 +8,7 @@ yarn-debug.log*
 dist/
 build/
 coverage/
+logs/
 .env
 .env.*
 .direnv/

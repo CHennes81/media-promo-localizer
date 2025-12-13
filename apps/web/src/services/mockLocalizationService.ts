@@ -8,6 +8,7 @@ import type {
   StageTimingsMs,
   ProcessingTimeMs,
 } from '../types/api';
+import { logger } from '../utils/logger';
 
 // Simulated processing times (in milliseconds)
 const STAGE_DURATIONS: Record<ProcessingStage, number> = {
@@ -178,6 +179,16 @@ export class MockLocalizationService {
     }
 
     const jobId = generateJobId();
+
+    logger.info('MockLocalizationService.createJob', {
+      component: 'MockLocalizationService',
+      action: 'createJob',
+      jobId,
+      targetLanguage: request.targetLanguage,
+      fileName: request.file.name,
+      fileSize: request.file.size,
+      mockMode: true,
+    });
     const job: LocalizationJob = {
       jobId,
       status: 'queued',
@@ -197,6 +208,15 @@ export class MockLocalizationService {
       },
       this.objectUrls,
     ).catch((error) => {
+      logger.error(
+        'MockLocalizationService job simulation failed',
+        {
+          component: 'MockLocalizationService',
+          action: 'simulationError',
+          jobId,
+        },
+        error instanceof Error ? error : new Error(String(error)),
+      );
       // Handle simulation errors
       const failedJob: LocalizationJob = {
         ...job,

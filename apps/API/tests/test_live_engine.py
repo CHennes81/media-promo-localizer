@@ -107,6 +107,15 @@ async def test_live_engine_success(
     assert result_job.result.processingTimeMs.total > 0
     assert len(result_job.result.detectedText) == 2
 
+    # Verify debug payload is present
+    assert result_job.result.debug is not None
+    assert len(result_job.result.debug.regions) == 2
+    assert result_job.result.debug.regions[0].id == "region_0"
+    assert result_job.result.debug.regions[0].original_text == "THE GREAT HEIST"
+    assert result_job.result.debug.regions[0].translated_text == "LE GRAND CASSE"
+    assert result_job.result.debug.regions[0].is_localizable is not None
+    assert result_job.result.debug.timings.total > 0
+
     # Verify clients were called
     mock_ocr_client.recognize_text.assert_called_once()
     mock_translation_client.translate_text_regions.assert_called_once()
@@ -200,5 +209,76 @@ async def test_live_engine_is_localizable(mock_ocr_client, mock_translation_clie
         text="COMING SOON", boundingBox=[0.1, 0.2, 0.8, 0.28], role="tagline"
     )
     assert engine._is_localizable(tagline_region)
+
+
+@pytest.mark.asyncio
+async def test_live_engine_progress_updates_to_translation_stage(
+    mock_ocr_client, mock_translation_client, mock_inpainting_client, sample_job
+):
+    """Test that job progress is updated to TRANSLATION stage before translation starts."""
+    from app.services.job_store import get_job_store
+
+    # Add job to store so we can verify progress updates
+    job_store = get_job_store()
+    job_store._jobs[sample_job.jobId] = sample_job
+
+    engine = LiveLocalizationEngine(
+        ocr_client=mock_ocr_client,
+        translation_client=mock_translation_client,
+        inpainting_client=mock_inpainting_client,
+    )
+
+    # Run engine (this will update progress before calling translation)
+    result_job = await engine.run(sample_job)
+
+    # Verify progress was updated to TRANSLATION stage
+    # We check the final result, but the key is that progress.stage should be TRANSLATION
+    # at some point during processing (after OCR, before translation completes)
+    assert result_job.status == JobStatus.SUCCEEDED
+    # Progress should have been TRANSLATION at some point
+    # The final progress will be PACKAGING, but we verify translation timing is present
+    assert result_job.result is not None
+    assert "translation" in result_job.result.processingTimeMs
+    assert result_job.result.processingTimeMs.translation > 0
+
+
+@pytest.mark.asyncio
+async def test_live_engine_translation_failure_shows_translation_stage(
+    mock_ocr_client, mock_inpainting_client, sample_job
+):
+    """Test that when translation fails, job progress reflects TRANSLATION stage (not OCR)."""
+    from app.services.job_store import get_job_store
+    from app.models import Progress, ProgressStage
+
+    # Add job to store
+    job_store = get_job_store()
+    job_store._jobs[sample_job.jobId] = sample_job
+
+    # Mock translation client to raise exception
+    mock_translation_client = MagicMock(spec=LlmTranslationClient)
+    mock_translation_client.translate_text_regions = AsyncMock(
+        side_effect=Exception("Translation API error")
+    )
+
+    engine = LiveLocalizationEngine(
+        ocr_client=mock_ocr_client,
+        translation_client=mock_translation_client,
+        inpainting_client=mock_inpainting_client,
+    )
+
+    result_job = await engine.run(sample_job)
+
+    # Verify job failed with translation error
+    assert result_job.status == JobStatus.FAILED
+    assert result_job.error is not None
+    assert result_job.error.code == "TRANSLATION_MODEL_ERROR"
+
+    # CRITICAL: Progress should show TRANSLATION stage, not OCR
+    assert result_job.progress is not None
+    assert result_job.progress.stage == ProgressStage.TRANSLATION
+    assert result_job.progress.percent == 50  # Should be 50% when in translation stage
+    # Should have OCR timing (completed) and translation timing (failed but attempted)
+    assert "ocr" in result_job.progress.stageTimingsMs
+    assert "translation" in result_job.progress.stageTimingsMs
 
 

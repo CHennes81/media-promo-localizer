@@ -3,9 +3,10 @@ import { PosterUpload } from './PosterUpload';
 import { LanguageSelector, SUPPORTED_LANGUAGES } from './LanguageSelector';
 import { ProcessingAnimation } from './ProcessingAnimation';
 import { ResultView } from './ResultView';
-import { mockLocalizationService } from '../services/mockLocalizationService';
+import { localizationApiClient } from '../services/localizationApiClient';
 import type { LocalizationJob } from '../types/api';
 import { useAuth } from '../contexts/AuthContext';
+import { logger } from '../utils/logger';
 import './LocalizationWorkspace.css';
 
 export function LocalizationWorkspace() {
@@ -31,9 +32,9 @@ export function LocalizationWorkspace() {
   useEffect(() => {
     const currentJobId = currentJob?.jobId ?? null;
 
-    // If we're switching from one job to another (or clearing), revoke the previous job's URLs
+    // If we're switching from one job to another (or clearing), cleanup previous job
     if (previousJobIdRef.current !== null && previousJobIdRef.current !== currentJobId) {
-      mockLocalizationService.revokeJobUrls(previousJobIdRef.current);
+      localizationApiClient.revokeJobUrls(previousJobIdRef.current);
     }
 
     previousJobIdRef.current = currentJobId;
@@ -41,7 +42,7 @@ export function LocalizationWorkspace() {
     // Cleanup on unmount
     return () => {
       if (previousJobIdRef.current !== null) {
-        mockLocalizationService.revokeJobUrls(previousJobIdRef.current);
+        localizationApiClient.revokeJobUrls(previousJobIdRef.current);
       }
     };
   }, [currentJob?.jobId]);
@@ -84,6 +85,16 @@ export function LocalizationWorkspace() {
   const handleLocalize = async () => {
     if (!selectedFile) return;
 
+    const startTime = Date.now();
+
+    logger.info('LocalizePoster clicked', {
+      component: 'LocalizationWorkspace',
+      action: 'localize',
+      targetLanguage: selectedLanguage,
+      fileName: selectedFile.name,
+      fileSize: selectedFile.size,
+    });
+
     // Clean up any previous subscription and timeout before starting a new job
     if (timeoutRef.current !== null) {
       clearTimeout(timeoutRef.current);
@@ -95,15 +106,54 @@ export function LocalizationWorkspace() {
     }
 
     try {
-      const job = await mockLocalizationService.createJob({
+      logger.info('Creating localization job', {
+        component: 'LocalizationWorkspace',
+        action: 'createJob',
+        method: 'POST',
+      });
+
+      const job = await localizationApiClient.createJob({
         file: selectedFile,
         targetLanguage: selectedLanguage,
       });
 
+      const requestDuration = Date.now() - startTime;
+
+      // CRITICAL: Always use jobId from create response, never a cached/stale value
+      const createdJobId = job.jobId;
+
+      logger.info('Localization job created', {
+        component: 'LocalizationWorkspace',
+        action: 'jobCreated',
+        jobId: createdJobId,
+        status: job.status,
+        requestDurationMs: requestDuration,
+      });
+
+      // Clear any previous job state before setting new job
+      setCurrentJob(null);
       setCurrentJob(job);
 
-      // Subscribe to job updates
-      const unsubscribe = mockLocalizationService.subscribeToJob(job.jobId, (updatedJob) => {
+      // Subscribe to job updates using the jobId from create response
+      logger.info('Starting job polling', {
+        component: 'LocalizationWorkspace',
+        action: 'startPolling',
+        jobId: createdJobId,
+      });
+
+      const unsubscribe = localizationApiClient.subscribeToJob(createdJobId, (updatedJob) => {
+        // Verify we're still tracking the same jobId
+        if (updatedJob.jobId !== createdJobId) {
+          logger.error('JobId mismatch during polling', {
+            component: 'LocalizationWorkspace',
+            action: 'jobIdMismatch',
+            expectedJobId: createdJobId,
+            receivedJobId: updatedJob.jobId,
+          });
+          return;
+        }
+
+        setCurrentJob(updatedJob);
         setCurrentJob(updatedJob);
         // If job completes, clean up immediately
         if (updatedJob.status === 'succeeded' || updatedJob.status === 'failed') {
@@ -126,17 +176,26 @@ export function LocalizationWorkspace() {
         unsubscribe();
         unsubscribeRef.current = null;
       } else {
-        // Auto-unsubscribe after a delay (job will complete via simulation)
+        // Auto-unsubscribe after a delay (safety timeout)
         timeoutRef.current = setTimeout(() => {
           if (unsubscribeRef.current !== null) {
             unsubscribeRef.current();
             unsubscribeRef.current = null;
           }
           timeoutRef.current = null;
-        }, 10000);
+        }, 60000); // 60 second timeout for safety
       }
     } catch (error) {
-      console.error('Failed to create localization job:', error);
+      const requestDuration = Date.now() - startTime;
+      logger.error(
+        'Failed to create localization job',
+        {
+          component: 'LocalizationWorkspace',
+          action: 'createJobError',
+          requestDurationMs: requestDuration,
+        },
+        error instanceof Error ? error : new Error(String(error)),
+      );
       // TODO: Show error message to user
     }
   };
@@ -225,6 +284,12 @@ export function LocalizationWorkspace() {
               <div className="workspace-error">
                 <h3>Localization Failed</h3>
                 <p>{currentJob.error.message}</p>
+                {currentJob.error.code === 'NOT_FOUND' && (
+                  <p className="workspace-error-hint">
+                    The job may have been lost due to a server restart. Please upload and localize
+                    again.
+                  </p>
+                )}
                 {currentJob.error.retryable && (
                   <button type="button" className="workspace-retry-button" onClick={handleLocalize}>
                     Retry

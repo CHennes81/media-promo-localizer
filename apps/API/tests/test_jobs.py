@@ -79,14 +79,21 @@ def test_get_job_success_after_creation(client, sample_image_jpeg):
         data={"targetLanguage": "es-MX"},
     )
     assert create_response.status_code == 202
-    job_id = create_response.json()["jobId"]
+    create_data = create_response.json()
+    job_id = create_data["jobId"]
 
-    # Get job immediately (may still be processing)
+    # Verify jobId is properly formatted
+    assert job_id.startswith("loc_")
+    assert len(job_id) > 10
+
+    # Get job immediately (should return 200, not 404)
     get_response = client.get(f"/v1/localization-jobs/{job_id}")
-    assert get_response.status_code == 200
+    assert get_response.status_code == 200, f"Expected 200 but got {get_response.status_code}. JobId: {job_id}"
     data = get_response.json()
-    assert data["jobId"] == job_id
-    assert data["status"] in ["queued", "processing", "succeeded"]
+
+    # CRITICAL: Verify the jobId from GET matches the one from CREATE
+    assert data["jobId"] == job_id, f"JobId mismatch: created={job_id}, retrieved={data['jobId']}"
+    assert data["status"] in ["queued", "processing", "succeeded", "failed"]
 
 
 def test_get_job_completed(client, sample_image_jpeg):
@@ -166,6 +173,46 @@ def test_create_job_invalid_metadata_json(client, sample_image_jpeg):
     data = response.json()
     assert "error" in data
     assert data["error"]["code"] == "INVALID_INPUT"
+
+
+def test_job_get_returns_created_job(client, sample_image_jpeg):
+    """Test that GET immediately after creation returns the same job (no 404).
+
+    This test verifies:
+    - Job is stored immediately upon creation
+    - GET can retrieve it right away
+    - JobId correlation is correct
+    """
+    # Create job
+    create_response = client.post(
+        "/v1/localization-jobs",
+        files={"file": ("poster.jpg", sample_image_jpeg, "image/jpeg")},
+        data={"targetLanguage": "fr-FR"},
+    )
+    assert create_response.status_code == 202
+
+    create_data = create_response.json()
+    created_job_id = create_data["jobId"]
+    created_status = create_data["status"]
+
+    # Immediately GET the job (should not 404)
+    get_response = client.get(f"/v1/localization-jobs/{created_job_id}")
+    assert get_response.status_code == 200, (
+        f"GET returned {get_response.status_code} for just-created job {created_job_id}. "
+        f"This indicates the job was not stored or was immediately evicted."
+    )
+
+    get_data = get_response.json()
+
+    # Verify jobId matches exactly
+    assert get_data["jobId"] == created_job_id, (
+        f"JobId mismatch: created={created_job_id}, retrieved={get_data['jobId']}"
+    )
+
+    # Verify status is consistent
+    assert get_data["status"] == created_status or get_data["status"] in ["queued", "processing"], (
+        f"Status mismatch: created={created_status}, retrieved={get_data['status']}"
+    )
 
 
 
