@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.clients.interfaces import OcrResult
 from app.clients.ocr_client import CloudOcrClient
-from app.models import DetectedText
+from app.models.jobs import DetectedText
 
 
 @pytest.fixture

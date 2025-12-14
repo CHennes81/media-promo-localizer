@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import HTTPException, status
 from fastapi.responses import JSONResponse
 
-from app.models import ErrorInfo
+from app.models.jobs import ErrorInfo
 
 
 class APIError(Exception):
@@ -105,6 +105,3 @@ class ErrorCodes:
     OCR_MODEL_TIMEOUT = "OCR_MODEL_TIMEOUT"
     TRANSLATION_MODEL_TIMEOUT = "TRANSLATION_MODEL_TIMEOUT"
     INPAINT_MODEL_TIMEOUT = "INPAINT_MODEL_TIMEOUT"
-
-
-

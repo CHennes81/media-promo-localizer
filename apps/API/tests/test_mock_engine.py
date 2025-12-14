@@ -4,7 +4,7 @@ Tests for mock localization engine skip behavior.
 import pytest
 from datetime import datetime, timezone
 
-from app.models import JobStatus, LocalizationJob
+from app.models.jobs import JobStatus, LocalizationJob
 from app.services import mock_engine
 
 

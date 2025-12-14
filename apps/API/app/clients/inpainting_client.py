@@ -11,7 +11,7 @@ import time
 from typing import List, Optional
 
 from app.clients.interfaces import IInpaintingClient
-from app.models import DetectedText
+from app.models.jobs import DetectedText
 
 logger = logging.getLogger("media_promo_localizer")
 
@@ -76,5 +76,3 @@ class StubInpaintingClient(IInpaintingClient):
 
         # Return original image - no inpainting performed
         return image_bytes
-
-

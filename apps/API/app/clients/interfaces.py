@@ -4,7 +4,7 @@ Provider-agnostic interfaces for OCR, translation, and inpainting clients.
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-from app.models import DetectedText
+from app.models.jobs import DetectedText
 
 
 class OcrResult:
@@ -120,5 +120,3 @@ class IInpaintingClient(ABC):
             Exception: If inpainting fails
         """
         pass
-
-

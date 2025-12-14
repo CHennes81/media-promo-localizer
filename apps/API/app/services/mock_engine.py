@@ -9,7 +9,7 @@ import time
 from datetime import datetime, timezone
 
 from app.config import settings
-from app.models import (
+from app.models.jobs import (
     DetectedText,
     ErrorInfo,
     JobResult,

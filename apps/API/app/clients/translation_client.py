@@ -9,7 +9,7 @@ from typing import List, Optional
 from openai import AsyncOpenAI
 
 from app.clients.interfaces import ITranslationClient, TranslatedRegion
-from app.models import DetectedText
+from app.models.jobs import DetectedText
 
 logger = logging.getLogger("media_promo_localizer")
 
@@ -228,5 +228,3 @@ Text regions to translate:
 """
 
         return prompt
-
-

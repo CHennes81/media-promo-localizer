@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from app.config import settings
-from app.models import JobStatus, LocalizationJob
+from app.models.jobs import JobStatus, LocalizationJob
 
 logger = logging.getLogger("media_promo_localizer")
 
@@ -151,6 +151,3 @@ def get_job_store() -> JobStore:
     if _job_store is None:
         _job_store = JobStore()
     return _job_store
-
-
-

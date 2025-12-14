@@ -12,7 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, Uploa
 from fastapi.responses import JSONResponse
 
 from app.config import settings
-from app.models import CreateJobResponse, JobStatus, LocalizationJob
+from app.models.jobs import CreateJobResponse, JobStatus, LocalizationJob
 from app.services.job_store import get_job_store
 from app.services.mock_engine import run as run_mock_engine
 from app.services.live_engine import create_live_engine
@@ -191,7 +191,7 @@ async def _process_job_background(job: LocalizationJob) -> None:
         job_store = get_job_store()
         job.status = JobStatus.FAILED
         job.updatedAt = datetime.now(timezone.utc)
-        from app.models import ErrorInfo
+        from app.models.jobs import ErrorInfo
 
         job.error = ErrorInfo(
             code=ErrorCodes.INTERNAL_ERROR,

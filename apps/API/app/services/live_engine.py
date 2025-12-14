@@ -16,7 +16,7 @@ from app.clients.interfaces import IOcrClient, IInpaintingClient, ITranslationCl
 from app.clients.ocr_client import CloudOcrClient
 from app.clients.translation_client import LlmTranslationClient
 from app.config import settings
-from app.models import (
+from app.models.jobs import (
     DebugInfo,
     DebugTextRegion,
     DetectedText,
@@ -27,6 +27,11 @@ from app.models import (
     ProcessingTimeMs,
     Progress,
     ProgressStage,
+)
+from app.utils.credits_detection import (
+    detect_credits_band,
+    extract_credits_crop,
+    group_credits_lines,
 )
 from app.utils.image_cache import get_image_cache
 from app.utils.image_derivatives import get_image_dimensions, maybe_make_derivative
@@ -103,6 +108,7 @@ class LiveLocalizationEngine:
             logger.info(f"PipelineStageStart job={job.jobId} stage={stage_name}")
             ocr_start = time.perf_counter()
             classified_regions: list[DetectedText] = []
+            ocr_result = None
             ocr_time_ms = 0
             skipped = False
 
@@ -155,6 +161,82 @@ class LiveLocalizationEngine:
                 f"PipelineStageEnd job={job.jobId} stage={stage_name} "
                 f"durationMs={ocr_time_ms} skipped={skipped} regions={len(classified_regions)}"
             )
+
+            # Credits detection (after OCR, before translation)
+            credits_detection = None
+            if not skipped and classified_regions and ocr_result is not None:
+                try:
+                    # Get image dimensions for credits detection
+                    image_width = ocr_result.image_width
+                    image_height = ocr_result.image_height
+
+                    if image_width > 0 and image_height > 0:
+                        credits_detection = detect_credits_band(
+                            line_regions=ocr_result.text_regions,
+                            original_image_bytes=original_image_bytes,
+                            image_width=image_width,
+                            image_height=image_height,
+                            job_id=job.jobId,
+                        )
+
+                        # If credits block detected, extract crop and run specialized OCR + grouping
+                        if (
+                            credits_detection
+                            and credits_detection.credits_block
+                            and credits_detection.credits_block.geometry
+                        ):
+                            # Extract crop
+                            crop_bytes, crop_method = extract_credits_crop(
+                                original_image_bytes=original_image_bytes,
+                                credits_block_geometry=credits_detection.credits_block.geometry,
+                                image_width=image_width,
+                                image_height=image_height,
+                                job_id=job.jobId,
+                            )
+
+                            # Run OCR on crop
+                            crop_ocr_result = await self.ocr_client.recognize_text(
+                                crop_bytes, job_id=job.jobId
+                            )
+
+                            # Get crop dimensions
+                            crop_width = crop_ocr_result.image_width
+                            crop_height = crop_ocr_result.image_height
+
+                            logger.info(
+                                f"CreditsOcrSummary job={job.jobId} lines={len(crop_ocr_result.text_regions)} "
+                                f"median_font_height=N/A angle={credits_detection.credits_block.dominant_angle_deg:.1f} "
+                                f"crop_method={crop_method}"
+                            )
+
+                            # Log first N lines
+                            preview_lines = [
+                                r.text[:80] for r in crop_ocr_result.text_regions[:5]
+                            ]
+                            logger.info(
+                                f"CreditsOcrPreview job={job.jobId} first_lines={preview_lines}"
+                            )
+
+                            # Group credits lines
+                            credit_groups = group_credits_lines(
+                                line_regions=crop_ocr_result.text_regions,
+                                image_width=crop_width,
+                                image_height=crop_height,
+                                job_id=job.jobId,
+                            )
+
+                            # Update credits block with groups
+                            credits_detection.credits_block.credit_groups = credit_groups
+
+                except Exception as e:
+                    # Log error but don't fail the job (credits detection is additive)
+                    logger.warning(
+                        f"CreditsDetectionError job={job.jobId} error={str(e)}", exc_info=True
+                    )
+
+            # Store credits detection in job
+            if credits_detection:
+                job.credits_detection = credits_detection.model_dump()
 
             # Stage 2: Translation
             stage_name = "TRANSLATION"

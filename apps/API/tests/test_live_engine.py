@@ -10,7 +10,7 @@ from app.clients.inpainting_client import StubInpaintingClient
 from app.clients.interfaces import OcrResult, TranslatedRegion
 from app.clients.ocr_client import CloudOcrClient
 from app.clients.translation_client import LlmTranslationClient
-from app.models import DetectedText, JobStatus, LocalizationJob
+from app.models.jobs import DetectedText, JobStatus, LocalizationJob
 from app.services.live_engine import LiveLocalizationEngine
 
 
@@ -248,7 +248,7 @@ async def test_live_engine_translation_failure_shows_translation_stage(
 ):
     """Test that when translation fails, job progress reflects TRANSLATION stage (not OCR)."""
     from app.services.job_store import get_job_store
-    from app.models import Progress, ProgressStage
+    from app.models.jobs import Progress, ProgressStage
 
     # Add job to store
     job_store = get_job_store()

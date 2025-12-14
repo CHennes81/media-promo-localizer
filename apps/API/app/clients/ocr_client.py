@@ -12,7 +12,7 @@ import httpx
 from PIL import Image
 
 from app.clients.interfaces import IOcrClient, OcrResult
-from app.models import DetectedText
+from app.models.jobs import DetectedText
 
 logger = logging.getLogger("media_promo_localizer")
 

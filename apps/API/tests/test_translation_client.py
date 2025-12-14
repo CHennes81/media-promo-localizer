@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.clients.interfaces import TranslatedRegion
 from app.clients.translation_client import LlmTranslationClient
-from app.models import DetectedText
+from app.models.jobs import DetectedText
 
 
 @pytest.fixture
@@ -139,5 +139,3 @@ async def test_llm_translation_client_logs_service_response_on_success(sample_re
         assert any("status=200" in msg for msg in service_response_logs)
         assert any("durationMs=" in msg for msg in service_response_logs)
         assert any("responseSizeBytes=" in msg for msg in service_response_logs)
-
-
