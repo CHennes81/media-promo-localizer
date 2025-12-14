@@ -17,6 +17,8 @@ from app.services.job_store import get_job_store
 from app.services.mock_engine import run as run_mock_engine
 from app.services.live_engine import create_live_engine
 from app.utils.errors import APIError, ErrorCodes, create_error_response, handle_exception
+from app.utils.image_cache import get_image_cache
+from app.utils.image_derivatives import get_image_dimensions
 
 logger = logging.getLogger("media_promo_localizer")
 
@@ -250,6 +252,33 @@ async def create_localization_job(
 
         # Save uploaded file
         file_path, file_size = await _save_uploaded_file(file, job_id)
+
+        # Read original image bytes and store in cache
+        image_cache = get_image_cache()
+        try:
+            with open(file_path, "rb") as f:
+                original_image_bytes = f.read()
+
+            # Get image dimensions
+            width, height = get_image_dimensions(original_image_bytes)
+
+            # Store in cache
+            image_cache.store_image(
+                job_id=job_id,
+                image_bytes=original_image_bytes,
+                width=width,
+                height=height,
+                content_type=file.content_type,
+            )
+
+            # Log image source
+            logger.info(
+                f"ImageSource job={job_id} size_bytes={file_size} dims={width}x{height} "
+                f"content_type={file.content_type or 'unknown'}"
+            )
+        except Exception as e:
+            logger.warning(f"Failed to cache image for job {job_id}: {e}, continuing with file path only")
+            # Continue without cache - live_engine will read from file
 
         # Create job in store
         job_store = get_job_store()

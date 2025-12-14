@@ -28,6 +28,8 @@ from app.models import (
     Progress,
     ProgressStage,
 )
+from app.utils.image_cache import get_image_cache
+from app.utils.image_derivatives import get_image_dimensions, maybe_make_derivative
 
 logger = logging.getLogger("media_promo_localizer")
 
@@ -52,6 +54,8 @@ class LiveLocalizationEngine:
         self.ocr_client = ocr_client
         self.translation_client = translation_client
         self.inpainting_client = inpainting_client
+        # Per-job derivative cache: (job_id, step, long_side_px) -> bytes
+        self._derivative_cache: dict[tuple[str, str, int], bytes] = {}
 
     async def run(self, job: LocalizationJob) -> LocalizationJob:
         """
@@ -67,15 +71,32 @@ class LiveLocalizationEngine:
             job.status = JobStatus.PROCESSING
             job.updatedAt = datetime.now(timezone.utc)
 
-            # Load image file
-            if not job.filePath:
-                raise ValueError("Job filePath is required")
-            image_path = Path(job.filePath)
-            if not image_path.exists():
-                raise FileNotFoundError(f"Image file not found: {job.filePath}")
+            # Get original image bytes from cache or file
+            image_cache = get_image_cache()
+            original_image_bytes = image_cache.get_image(job.jobId)
 
-            with open(image_path, "rb") as f:
-                image_bytes = f.read()
+            if original_image_bytes is None:
+                # Fallback to file if not in cache
+                if not job.filePath:
+                    raise ValueError("Job filePath is required")
+                image_path = Path(job.filePath)
+                if not image_path.exists():
+                    raise FileNotFoundError(f"Image file not found: {job.filePath}")
+                with open(image_path, "rb") as f:
+                    original_image_bytes = f.read()
+
+                # Try to cache it for future use
+                try:
+                    width, height = get_image_dimensions(original_image_bytes)
+                    image_cache.store_image(
+                        job_id=job.jobId,
+                        image_bytes=original_image_bytes,
+                        width=width,
+                        height=height,
+                        content_type=None,
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to cache image for job {job.jobId}: {e}")
 
             # Stage 1: OCR
             stage_name = "OCR"
@@ -96,8 +117,13 @@ class LiveLocalizationEngine:
                 ocr_time_ms = max(1, int((time.perf_counter() - ocr_start) * 1000))
             else:
                 try:
+                    # Get OCR image bytes (derivative if needed)
+                    ocr_image_bytes = self._get_image_for_step(
+                        job.jobId, "OCR", original_image_bytes, settings.OCR_IMAGE_LONG_SIDE_PX
+                    )
+
                     ocr_result = await self.ocr_client.recognize_text(
-                        image_bytes, job_id=job.jobId
+                        ocr_image_bytes, job_id=job.jobId
                     )
                     ocr_time_ms = max(1, int((time.perf_counter() - ocr_start) * 1000))
 
@@ -202,7 +228,7 @@ class LiveLocalizationEngine:
             stage_name = "INPAINT"
             logger.info(f"PipelineStageStart job={job.jobId} stage={stage_name}")
             inpaint_start = time.perf_counter()
-            inpainted_image_bytes = image_bytes
+            inpainted_image_bytes = original_image_bytes
             inpaint_time_ms = 0
             skipped = False
 
@@ -213,13 +239,18 @@ class LiveLocalizationEngine:
                     f"reason=env_var env=SKIP_INPAINT value=true"
                 )
                 # Pass through the original image bytes as the "localized" image
-                inpainted_image_bytes = image_bytes
+                inpainted_image_bytes = original_image_bytes
                 inpaint_time_ms = max(1, int((time.perf_counter() - inpaint_start) * 1000))
             else:
                 try:
+                    # Get inpainting image bytes (derivative if needed)
+                    inpaint_image_bytes = self._get_image_for_step(
+                        job.jobId, "INPAINT", original_image_bytes, settings.INPAINT_IMAGE_LONG_SIDE_PX
+                    )
+
                     # Use stub inpainting (returns original image)
                     inpainted_image_bytes = await self.inpainting_client.inpaint_regions(
-                        image_bytes, classified_regions
+                        inpaint_image_bytes, classified_regions
                     )
                     inpaint_time_ms = max(1, int((time.perf_counter() - inpaint_start) * 1000))
                 except Exception as e:
@@ -272,10 +303,14 @@ class LiveLocalizationEngine:
             else:
                 # Save output image (for now, just copy original since inpainting is stubbed)
                 # In future, this would render translated text onto the inpainted image
-                output_dir = image_path.parent
+                # Use original bytes for final output (not derivative)
+                if job.filePath:
+                    output_dir = Path(job.filePath).parent
+                else:
+                    output_dir = Path("tmp/uploads") / job.jobId
                 output_path = output_dir / "output.png"
                 with open(output_path, "wb") as f:
-                    f.write(inpainted_image_bytes)
+                    f.write(original_image_bytes)
                 packaging_time_ms = max(1, int((time.perf_counter() - packaging_start) * 1000))
 
             # Build detected text list for result (mix of original and translated)
@@ -396,6 +431,61 @@ class LiveLocalizationEngine:
             )
             job.updatedAt = datetime.now(timezone.utc)
             return job
+
+    def _get_image_for_step(
+        self, job_id: str, step: str, original_bytes: bytes, target_long_side_px: int
+    ) -> bytes:
+        """
+        Get image bytes for a pipeline step, generating derivative if needed.
+
+        Args:
+            job_id: Job identifier
+            step: Pipeline step name (OCR, TRANSLATION, INPAINT)
+            original_bytes: Original image bytes
+            target_long_side_px: Target long side in pixels
+
+        Returns:
+            Image bytes (derivative if needed, or original)
+        """
+        # Check cache first
+        cache_key = (job_id, step, target_long_side_px)
+        if cache_key in self._derivative_cache:
+            return self._derivative_cache[cache_key]
+
+        # Get original dimensions
+        try:
+            orig_width, orig_height = get_image_dimensions(original_bytes)
+            orig_long_side = max(orig_width, orig_height)
+        except Exception as e:
+            logger.warning(f"Failed to get image dimensions for job {job_id}, using original: {e}")
+            return original_bytes
+
+        # Check if derivative is needed
+        if orig_long_side <= target_long_side_px:
+            # No derivative needed
+            logger.info(
+                f"ImageDerivativeNotNeeded job={job_id} step={step} dims={orig_width}x{orig_height}"
+            )
+            self._derivative_cache[cache_key] = original_bytes
+            return original_bytes
+
+        # Generate derivative
+        try:
+            derivative_bytes = maybe_make_derivative(
+                original_bytes, target_long_side_px, format="JPEG", quality=90
+            )
+            deriv_width, deriv_height = get_image_dimensions(derivative_bytes)
+            logger.info(
+                f"ImageDerivativeGenerated job={job_id} step={step} "
+                f"from={orig_width}x{orig_height} to={deriv_width}x{deriv_height} "
+                f"long_side_px={target_long_side_px} size_bytes={len(derivative_bytes)}"
+            )
+            self._derivative_cache[cache_key] = derivative_bytes
+            return derivative_bytes
+        except Exception as e:
+            logger.warning(f"Failed to generate derivative for job {job_id} step {step}, using original: {e}")
+            self._derivative_cache[cache_key] = original_bytes
+            return original_bytes
 
     def _classify_text_regions(self, regions: list[DetectedText]) -> list[DetectedText]:
         """

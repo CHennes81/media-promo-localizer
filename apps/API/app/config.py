@@ -40,6 +40,17 @@ class Settings(BaseSettings):
     # Analysis settings (for future use)
     ANALYSIS_MAX_LONG_EDGE_PX: int = Field(default=3072, description="Max long edge for analysis images")
 
+    # Image derivative settings for pipeline steps
+    OCR_IMAGE_LONG_SIDE_PX: int = Field(
+        default=5000, description="Max long side for OCR step (use full-res if image <= this)"
+    )
+    TRANSLATION_IMAGE_LONG_SIDE_PX: int = Field(
+        default=2000, description="Max long side for translation step (if image context needed)"
+    )
+    INPAINT_IMAGE_LONG_SIDE_PX: int = Field(
+        default=2000, description="Max long side for inpainting step"
+    )
+
     # OCR provider settings (for live mode)
     OCR_PROVIDER: str = Field(default="google", description="OCR provider name")
     OCR_API_KEY: Optional[str] = Field(default=None, description="OCR provider API key")

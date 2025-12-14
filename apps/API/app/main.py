@@ -122,6 +122,9 @@ async def lifespan(app: FastAPI):
     logger.info(f"Config SKIP_TRANSLATION={settings.SKIP_TRANSLATION}")
     logger.info(f"Config SKIP_INPAINT={settings.SKIP_INPAINT}")
     logger.info(f"Config SKIP_PACKAGING={settings.SKIP_PACKAGING}")
+    logger.info(f"Config OCR_IMAGE_LONG_SIDE_PX={settings.OCR_IMAGE_LONG_SIDE_PX}")
+    logger.info(f"Config TRANSLATION_IMAGE_LONG_SIDE_PX={settings.TRANSLATION_IMAGE_LONG_SIDE_PX}")
+    logger.info(f"Config INPAINT_IMAGE_LONG_SIDE_PX={settings.INPAINT_IMAGE_LONG_SIDE_PX}")
 
     if mode == "live":
         ocr_client = "CloudOcrClient (Google Vision)"
