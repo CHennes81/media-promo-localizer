@@ -17,6 +17,8 @@ from app.clients.ocr_client import CloudOcrClient
 from app.clients.translation_client import LlmTranslationClient
 from app.config import settings
 from app.models import (
+    DebugInfo,
+    DebugTextRegion,
     DetectedText,
     ErrorInfo,
     JobResult,
@@ -295,6 +297,42 @@ class LiveLocalizationEngine:
                     )
                 )
 
+            # Build debug regions with geometry
+            debug_regions: list[DebugTextRegion] = []
+            for i, region in enumerate(classified_regions):
+                # Find translation if available
+                translated = next(
+                    (tr for tr in translated_regions if tr.original_text == region.text),
+                    None,
+                )
+
+                # Extract geometry if available (stored in _geometry attribute from OCR)
+                geometry = None
+                if hasattr(region, "_geometry"):
+                    geometry = region._geometry
+
+                # Convert boundingBox [x1, y1, x2, y2] to bbox_norm [x, y, width, height]
+                bbox = region.boundingBox
+                if len(bbox) >= 4:
+                    x, y = bbox[0], bbox[1]
+                    width = bbox[2] - bbox[0]
+                    height = bbox[3] - bbox[1]
+                    bbox_norm = [x, y, width, height]
+                else:
+                    bbox_norm = [0.0, 0.0, 0.0, 0.0]
+
+                debug_regions.append(
+                    DebugTextRegion(
+                        id=f"region_{i}",
+                        role=region.role,
+                        bbox_norm=bbox_norm,
+                        original_text=region.text,
+                        translated_text=translated.translated_text if translated else None,
+                        is_localizable=self._is_localizable(region),
+                        geometry=geometry,
+                    )
+                )
+
             logger.info(
                 f"PipelineStageEnd job={job.jobId} stage={stage_name} "
                 f"durationMs={packaging_time_ms} skipped={skipped}"
@@ -328,6 +366,16 @@ class LiveLocalizationEngine:
                 language=job.targetLanguage,
                 sourceLanguage=job.sourceLanguage or "en-US",
                 detectedText=detected_text_list,
+                debug=DebugInfo(
+                    regions=debug_regions,
+                    timings=ProcessingTimeMs(
+                        ocr=ocr_time_ms,
+                        translation=translation_time_ms,
+                        inpaint=inpaint_time_ms,
+                        packaging=packaging_time_ms,
+                        total=total_time_ms,
+                    ),
+                ),
             )
 
             job.status = JobStatus.SUCCEEDED

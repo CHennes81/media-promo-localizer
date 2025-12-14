@@ -3,7 +3,7 @@ Pydantic models for API request/response schemas and internal job representation
 """
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING, Dict
 
 from pydantic import BaseModel, Field
 
@@ -71,6 +71,10 @@ class DebugTextRegion(BaseModel):
         default=None, description="Translated text (if available)"
     )
     is_localizable: bool = Field(description="Whether this region is localizable")
+    geometry: Optional[Dict] = Field(
+        default=None,
+        description="Rotation-aware geometry: quad_norm (4 vertices), center_norm (x,y), angle_deg (degrees)"
+    )
 
 
 class ProcessingTimeMs(BaseModel):
@@ -170,6 +174,3 @@ class LocalizationJob(BaseModel):
             result=self.result,
             error=self.error,
         )
-
-
-
